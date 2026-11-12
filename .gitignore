@@ -24,3 +24,5 @@ build/
 keys.txt
 node_modules/
 .next/
+
+voice-samples/

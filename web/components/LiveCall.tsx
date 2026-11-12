@@ -74,6 +74,9 @@ const T = {
   },
 };
 
+/** Typical delay between the audio player starting a chunk and it reaching the speakers. */
+const OUTPUT_LAG_MS = 90;
+
 const LANG_NAME: Record<Lang, string> = { es: "Spanish (Spain)", en: "English" };
 const LEVEL: Record<string, string> = { new: "new", basics: "basics", expert: "expert" };
 
@@ -193,17 +196,20 @@ function Live({ slug }: { slug: string }) {
         turnOver.current = false;
       }
       aligned.current = true;
-      segs.current.push({ t0: performance.now(), starts: alignment.char_start_times_ms });
+      // The browser plays a chunk a little after the player reports it: light letters with that delay.
+      segs.current.push({ t0: performance.now() + OUTPUT_LAG_MS, starts: alignment.char_start_times_ms });
       said.current += alignment.chars.join("");
       setLine(said.current);
     },
-    onModeChange: ({ mode }) => {
-      if (mode === "listening") turnOver.current = true;
-    },
     onMessage: (m) => {
+      // A new turn starts when the person speaks. Not on "listening": the player reports that
+      // too in the short gaps between audio chunks of the same reply, which used to reset the caption.
+      if (m.role === "user" || m.source === "user") {
+        turnOver.current = true;
+        return;
+      }
       // Without timing data (or before it arrives) fall back to the full reply at speaking pace.
       if (aligned.current) return;
-      if (m.role !== "agent" && m.source !== "ai") return;
       lineStart.current = performance.now();
       lineLen.current = m.message.length;
       setProgress(0);
@@ -294,6 +300,9 @@ function Live({ slug }: { slug: string }) {
     setStep(null);
     setLine("");
     finished.current = false;
+    turnOver.current = true;
+    aligned.current = false;
+    segs.current = [];
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((x) => x.stop()));
     } catch {

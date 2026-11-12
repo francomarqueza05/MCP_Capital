@@ -5,6 +5,9 @@
 const KEY = process.env.ELEVENLABS_API_KEY;
 const AGENT = process.env.ELEVENLABS_AGENT_ID;
 const VOICE = process.env.VOICE_ID ?? "dNjJKg63Fr5AXwIdkATa"; // Cristina: warm, neutral Castilian Spanish
+// eleven_v3_conversational: the most natural agent voice (breaths, pauses, intonation).
+// eleven_flash_v2_5 answers faster but sounds flatter.
+const TTS_MODEL = process.env.TTS_MODEL ?? "eleven_v3_conversational";
 const VOICE_EN = process.env.VOICE_ID_EN ?? "EXAVITQu4vr4xnSDxMaL"; // Sarah, for English
 const LLM = process.env.AGENT_LLM ?? "gemini-3.5-flash"; // fast, good Spanish, parallel tool calls
 if (!KEY) throw new Error("ELEVENLABS_API_KEY missing: run with --env-file=../.env");
@@ -36,7 +39,9 @@ FIGURES: THE ONE HARD RULE
 
 VOICE
 - This is a spoken call. Two or three short sentences per turn, then let them speak. No lists, no markdown, no reading out symbols.
-- Say amounts the way people say them ("about one hundred and thirteen thousand dollars").
+- Sound like a person on a relaxed phone call, not a recording: short sentences, natural rhythm, an occasional "bueno", "mira" or "vale" in Spanish ("well", "so" in English) where a person would say it, a comma or an ellipsis where you would pause to breathe. Never overdo it.
+- Say amounts the way people say them ("about one hundred and thirteen thousand dollars"; "unos ciento trece mil dólares").
+- Write only words to be spoken: no stage directions, no text in brackets.
 - Be warm and calm. Lead with what is going well. Hard news is said plainly, once, with what can be done about it.
 - If they interrupt, stop and answer what they said.`;
 
@@ -128,7 +133,7 @@ const body = {
     language_presets: {
       en: { overrides: { agent: { first_message: FIRST.en, language: "en" }, tts: { voice_id: VOICE_EN } } },
     },
-    tts: { voice_id: VOICE, model_id: "eleven_flash_v2_5" },
+    tts: { voice_id: VOICE, model_id: TTS_MODEL },
     turn: { turn_timeout: 7 },
   },
   platform_settings: {
