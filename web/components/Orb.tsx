@@ -45,7 +45,7 @@ void main(){
   float r = length(uv);
   vec2 q = uv / R;
   float len = length(q);
-  float aa = 1.5 * px / R;
+  float aa = 2.0 * px / R;
   float inside = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, len);
   float z = sqrt(max(0.0, 1.0 - len * len));
   float ang = atan(q.y, q.x);
@@ -153,7 +153,7 @@ export function Orb({ state, level }: { state: VoiceState; level: React.RefObjec
 
   useEffect(() => {
     const canvas = ref.current!;
-    const gl = canvas.getContext("webgl", { premultipliedAlpha: true, antialias: true, alpha: true });
+    const gl = canvas.getContext("webgl", { premultipliedAlpha: true, antialias: true, alpha: true, powerPreference: "high-performance" });
     if (!gl) return;
 
     const compile = (type: number, src: string) => {
@@ -186,10 +186,13 @@ export function Orb({ state, level }: { state: VoiceState; level: React.RefObjec
     };
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // Supersample: render above the screen's pixel density so the hairline rim and the
+      // light ribbon stay crisp, capped so a large canvas stays cheap.
+      const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1) * 1.6, 3.2);
       const { width, height } = canvas.getBoundingClientRect();
-      canvas.width = Math.max(2, Math.round(width * dpr));
-      canvas.height = Math.max(2, Math.round(height * dpr));
+      const side = Math.min(2400, Math.max(2, Math.round(Math.max(width, height) * dpr)));
+      canvas.width = side;
+      canvas.height = side;
       gl.viewport(0, 0, canvas.width, canvas.height);
     };
     const ro = new ResizeObserver(resize);
