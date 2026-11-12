@@ -1,15 +1,15 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { CallExperience } from "@/components/CallExperience";
-import { caseSlugs } from "@/mock/data";
+import { caseIds } from "@/lib/cases/load";
 
 export function generateStaticParams() {
-  return caseSlugs.map((slug) => ({ slug }));
+  return caseIds().map((slug) => ({ slug }));
 }
 
 async function Screen({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  if (!caseSlugs.includes(slug)) notFound();
+  if (!caseIds().includes(slug)) notFound();
   return <CallExperience slug={slug} />;
 }
 

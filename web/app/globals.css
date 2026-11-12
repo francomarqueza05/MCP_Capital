@@ -721,6 +721,21 @@ a {
   color: #575875;
 }
 
+.v-quote {
+  max-width: 22ch;
+  margin: 0 auto;
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(1.7rem, 6vw, 2.6rem);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.v-figure > p {
+  max-width: 34ch;
+  margin: 4px auto 0;
+}
+
 /* ---------- The days after ---------- */
 
 .home,

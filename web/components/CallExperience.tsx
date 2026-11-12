@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { AnimatePresence, animate, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { cases, type Ctx, type Phase, type Visual } from "@/mock/data";
-import voice from "@/mock/voice.json";
+import type { Packet, Visual } from "@/lib/engine/engine";
+import type { YearPoint } from "@/lib/cases/load";
 import { downloadIcs, nextSaturday } from "@/lib/calendar";
 import { Orb, type VoiceState } from "./Orb";
 import { Ridge } from "./Ridge";
 
-const clips = voice as Record<string, string>;
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const spring = { type: "spring", stiffness: 260, damping: 26 } as const;
@@ -27,6 +26,11 @@ const stateWords: Record<VoiceState, string> = {
   speaking: "Tap the orb to interrupt",
   interrupted: "Go ahead",
 };
+
+const CUT_CHIPS = ["Say that again, simpler", "Tell me more", "Carry on"];
+
+type Goal = { id: string; title: string; detail: string; due: string | null };
+type DoneReply = { packet: Packet | null; goal: Goal | null; session: { done: boolean } };
 
 /** A number that counts up when it appears, in step with the voice saying it. */
 function Count({ to, seconds = 1.4 }: { to: number; seconds?: number }) {
@@ -79,6 +83,51 @@ function Caption({ text, progress }: { text: string; progress: number }) {
   );
 }
 
+/** What the plan shows while the guide talks: built from the phase packet, never by the model. */
+function Stage({ visual, yearly, seconds }: { visual: Visual; yearly: YearPoint[] | null; seconds: number }) {
+  if (visual.kind === "figure") {
+    const f = visual.fact;
+    const money = typeof f.value === "number" && (f.unit === "USD" || f.unit === "USD/yr");
+    const pct = f.unit === "percent" ? parseFloat(String(f.value)) : null;
+    return (
+      <div className="v-figure">
+        {pct !== null && (
+          <div className="ring">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle cx="60" cy="60" r="52" className="ring-track" />
+              <motion.circle
+                cx="60"
+                cy="60"
+                r="52"
+                className="ring-fill"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: Math.min(1, pct / 100) }}
+                transition={{ duration: 1.8, ease: [0.2, 0.7, 0.2, 1], delay: 0.4 }}
+              />
+            </svg>
+          </div>
+        )}
+        <strong>{money ? <Count to={Math.abs(f.value as number)} seconds={1.8} /> : f.display}</strong>
+        <p>
+          {f.label}
+          {f.unit === "USD/yr" ? ", per year" : ""}
+        </p>
+      </div>
+    );
+  }
+  if (visual.kind === "ridge" && yearly) return <Ridge yearly={yearly} toAge={visual.toAge} flags={visual.flags} seconds={seconds} />;
+  if (visual.kind === "quote") return <p className="v-quote">{visual.text}</p>;
+  if (visual.kind === "step")
+    return (
+      <div className="v-step">
+        <span className="pill is-blue">This week</span>
+        <strong>{visual.title}</strong>
+        <p>{visual.detail}</p>
+      </div>
+    );
+  return null;
+}
+
 const Icon = ({ d }: { d: string }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d={d} />
@@ -89,24 +138,28 @@ const MIC_OFF = "M4 4l16 16M9.5 9.5v2a2.5 2.5 0 0 0 4 2M14.5 10V6.5a2.5 2.5 0 0 
 const CC = "M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9ZM10.5 10.5a2 2 0 1 0 0 3M16.5 10.5a2 2 0 1 0 0 3";
 const CLOSE = "M6 6l12 12M18 6 6 18";
 
-// Visual pass: the script and figures come from mock data, the voice is ElevenLabs audio
-// rendered ahead of time. The live build swaps `speak` and `listen` for the ElevenLabs
-// agent session; the orb already runs on real audio levels, so nothing here changes.
+// The conversation, driven by the phase engine through /api/v1. The engine sends one packet
+// per phase: what to cover, the figures, the visual and the lines to say. This screen speaks
+// those lines with the ElevenLabs voice and reports back; the engine decides what is next.
+// The live agent replaces `speak` and `listen`; the API contract stays the same.
 export function CallExperience({ slug }: { slug: string }) {
-  const data = cases[slug];
-  const [member, setMember] = useState(data.members[0]);
-  const [stage, setStage] = useState<"lobby" | "call" | "done">("lobby");
+  const [token, setToken] = useState<string | null | undefined>(undefined);
+  const [me, setMe] = useState<{ name: string; household: string } | null>(null);
+  const [stage, setStage] = useState<"lobby" | "call" | "done" | "error">("lobby");
+  const [error, setError] = useState("");
   const [state, setState] = useState<VoiceState>("idle");
-  const [phase, setPhase] = useState<Phase | null>(null);
+  const [packet, setPacket] = useState<Packet | null>(null);
   const [line, setLine] = useState("");
   const [progress, setProgress] = useState(0);
-  const [seconds, setSeconds] = useState(4);
+  const [seconds, setSeconds] = useState(6);
   const [visual, setVisual] = useState<Visual | null>(null);
+  const [yearly, setYearly] = useState<YearPoint[] | null>(null);
   const [chips, setChips] = useState<string[] | null>(null);
   const [captionsOn, setCaptionsOn] = useState(true);
   const [soundOn, setSoundOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
-  const [accepted, setAccepted] = useState(false);
+  const [goal, setGoal] = useState<Goal | null>(null);
+  const [step, setStep] = useState<{ title: string; detail: string } | null>(null);
 
   const root = useRef<HTMLElement>(null);
   const level = useRef(0);
@@ -119,18 +172,46 @@ export function CallExperience({ slug }: { slug: string }) {
   const mic = useRef<AnalyserNode | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const playing = useRef<{ el?: HTMLAudioElement; t0: number; total: number } | null>(null);
+  const clips = useRef(new Map<string, Promise<string | null>>());
   const soundRef = useRef(soundOn);
   const micRef = useRef(micOn);
   soundRef.current = soundOn;
   micRef.current = micOn;
+
+  const api = useCallback(
+    async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
+      const res = await fetch(`/api/v1${path}`, {
+        ...init,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(init.headers ?? {}) },
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error?.message ?? `Request failed (${res.status})`);
+      return res.json();
+    },
+    [token],
+  );
+
+  // The personal link carries the token.
+  useEffect(() => {
+    setToken(new URLSearchParams(location.search).get("t"));
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    api<{ name: string; household: string }>("/me")
+      .then(setMe)
+      .catch((e) => {
+        setError(e.message);
+        setStage("error");
+      });
+  }, [token, api]);
 
   const go = useCallback((v: VoiceState) => {
     stateRef.current = v;
     setState(v);
   }, []);
 
-  // One loop reads the real audio (the guide's voice or the family's microphone),
-  // feeds the orb and the page glow, and advances the caption with the playback.
+  // One loop reads the real audio (the guide's voice or the microphone), feeds the orb and
+  // the page glow, advances the caption with the playback, and hears the end of an answer.
   useEffect(() => {
     let raf = 0;
     let heard = 0;
@@ -155,10 +236,10 @@ export function CallExperience({ slug }: { slug: string }) {
         const real = p.el && !p.el.paused;
         lv = real ? 1 - Math.exp(-rms(out.current) * 6.5) : 0.25 + 0.4 * Math.abs(Math.sin(now / 137) * Math.sin(now / 345 + 1));
         const pr = p.el?.duration ? p.el.currentTime / p.el.duration : (now - p.t0) / p.total;
-        const step = Math.round(Math.min(1, pr) * 400);
-        if (step !== shown) {
-          shown = step;
-          setProgress(step / 400);
+        const st = Math.round(Math.min(1, pr) * 400);
+        if (st !== shown) {
+          shown = st;
+          setProgress(st / 400);
         }
       } else if (s === "listening") {
         lv = micRef.current ? 1 - Math.exp(-rms(mic.current) * 9) : 0;
@@ -184,9 +265,26 @@ export function CallExperience({ slug }: { slug: string }) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  /** Fetch a line's audio once; lines of a packet are fetched together so speech never waits. */
+  const clip = useCallback(
+    (text: string) => {
+      if (!clips.current.has(text)) {
+        clips.current.set(
+          text,
+          fetch("/api/v1/speech", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ text }) })
+            .then((r) => (r.ok ? r.blob() : null))
+            .then((b) => (b ? URL.createObjectURL(b) : null))
+            .catch(() => null),
+        );
+      }
+      return clips.current.get(text)!;
+    },
+    [token],
+  );
+
   const speak = useCallback(
     (text: string) =>
-      new Promise<"done" | "cut">((resolve) => {
+      new Promise<"done" | "cut">(async (resolve) => {
         let timer: ReturnType<typeof setTimeout> | undefined;
         let settled = false;
         const finish = (how: "done" | "cut") => {
@@ -200,7 +298,6 @@ export function CallExperience({ slug }: { slug: string }) {
         };
         const begin = (total: number, el?: HTMLAudioElement) => {
           playing.current = { el, t0: performance.now(), total: total * 1000 };
-          setSeconds(total);
           setProgress(0);
           setLine(text);
           go("speaking");
@@ -212,10 +309,10 @@ export function CallExperience({ slug }: { slug: string }) {
         };
         cut.current = () => finish("cut");
 
-        const src = clips[text];
-        if (!src || !soundRef.current || !ac.current || !out.current) return silent();
+        const src = soundRef.current ? await clip(text) : null;
+        if (settled) return;
+        if (!src || !ac.current || !out.current) return silent();
         const el = new Audio(src);
-        el.preload = "auto";
         try {
           ac.current.createMediaElementSource(el).connect(out.current);
         } catch {
@@ -228,7 +325,7 @@ export function CallExperience({ slug }: { slug: string }) {
         el.onended = () => finish("done");
         el.onerror = silent;
       }),
-    [go],
+    [go, clip],
   );
 
   const listen = useCallback(
@@ -260,9 +357,10 @@ export function CallExperience({ slug }: { slug: string }) {
     const id = ++run.current;
     const alive = () => run.current === id;
     setStage("call");
-    setAccepted(false);
     setVisual(null);
     setLine("");
+    setGoal(null);
+    go("thinking");
 
     const ctxA = new AudioContext();
     ac.current = ctxA;
@@ -271,7 +369,6 @@ export function CallExperience({ slug }: { slug: string }) {
     an.smoothingTimeConstant = 0.5;
     an.connect(ctxA.destination);
     out.current = an;
-    // The guide starts talking at once; the microphone joins when the family allows it.
     navigator.mediaDevices
       ?.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
       .then((s) => {
@@ -284,49 +381,86 @@ export function CallExperience({ slug }: { slug: string }) {
       })
       .catch(() => setMicOn(false));
 
-    await wait(700);
-    const ctx: Ctx = { name: member.name, worry: null };
-    for (const p of data.phases) {
+    try {
+      const [opened, ridge] = await Promise.all([
+        api<{ session: { id: string }; packet: Packet }>("/sessions", { method: "POST", body: "{}" }),
+        api<{ yearly: YearPoint[] }>("/visuals/ridge"),
+      ]);
       if (!alive()) return;
-      setPhase(p);
-      let i = 0;
-      while (i < p.lines.length) {
-        const l = p.lines[i];
-        if (l.visual !== undefined) setVisual(l.visual);
-        const how = await speak(typeof l.say === "function" ? l.say(ctx) : l.say);
-        if (!alive()) return;
-        if (how === "cut") {
-          go("interrupted");
-          setLine("");
-          await wait(500);
+      setYearly(ridge.yearly);
+      let pk: Packet | null = opened.packet;
+
+      while (pk && alive()) {
+        const current: Packet = pk;
+        setPacket(current);
+        const lines = current.fallback;
+        lines.forEach(clip);
+        current.ask.forEach((a) => clip(a.question));
+        setSeconds(Math.max(4, lines.join(" ").length * 0.065));
+        if (current.visual.kind !== "none") setVisual(current.visual);
+        if (current.visual.kind === "step") setStep({ title: current.visual.title, detail: current.visual.detail });
+
+        // Say the phase; an interruption lets them ask for it simpler, deeper, or carry on.
+        let outcome: "ok" | "simpler" | "more" = "ok";
+        for (let i = 0; i < lines.length && outcome === "ok"; ) {
+          const how = await speak(lines[i]);
           if (!alive()) return;
-          await listen(null);
-          if (!alive()) return;
-          go("thinking");
-          await wait(900);
-          if (!alive()) return;
-          await speak(p.interruptReply);
-          if (!alive()) return;
-          continue;
+          if (how === "cut") {
+            go("interrupted");
+            setLine("");
+            await wait(420);
+            const pick = await listen(CUT_CHIPS);
+            if (!alive()) return;
+            if (pick === CUT_CHIPS[0]) outcome = "simpler";
+            else if (pick === CUT_CHIPS[1]) outcome = "more";
+            continue;
+          }
+          i++;
+          await wait(200);
         }
-        i++;
-        await wait(220);
-      }
-      if (p.ask) {
-        const picked = await listen(p.ask.chips);
-        if (!alive()) return;
-        if (p.ask.remember === "worry") ctx.worry = picked;
-        if (p.id === "step") setAccepted(Boolean(picked?.startsWith("Yes")));
+
+        const answers: { worry?: string; level?: string; accepted?: boolean } = {};
+        if (outcome === "ok") {
+          const said = lines.join(" ").toLowerCase();
+          for (const a of current.ask) {
+            if (!said.includes(a.question.toLowerCase())) {
+              await speak(a.question);
+              if (!alive()) return;
+            }
+            const picked = await listen(a.chips);
+            if (!alive()) return;
+            if (a.field === "worry" && picked && current.phase === "discovery") answers.worry = picked;
+            if (a.field === "level" && picked) answers.level = picked;
+            if (a.field === "accepted") answers.accepted = Boolean(picked?.startsWith("Yes"));
+          }
+        }
+
         go("thinking");
         setLine("");
-        await wait(1000);
+        const reply: DoneReply = await api<DoneReply>(`/sessions/${opened.session.id}/phase-done`, {
+          method: "POST",
+          body: JSON.stringify({
+            understood: outcome !== "simpler",
+            wantsMore: outcome === "more" || undefined,
+            answers,
+          }),
+        });
+        if (!alive()) return;
+        if (reply.goal) setGoal(reply.goal);
+        pk = reply.packet;
       }
+    } catch (e) {
+      if (!alive()) return;
+      stopAudio();
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setStage("error");
+      return;
     }
     if (!alive()) return;
     go("idle");
     stopAudio();
     setStage("done");
-  }, [data, member, speak, listen, go, stopAudio]);
+  }, [api, clip, speak, listen, go, stopAudio]);
 
   const end = useCallback(() => {
     run.current++;
@@ -358,7 +492,8 @@ export function CallExperience({ slug }: { slug: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [stage]);
 
-  const when = nextSaturday();
+  const due = goal?.due ? new Date(`${goal.due}T10:00:00`) : nextSaturday();
+  const closing = goal ?? step;
   const compact = stage === "call" && Boolean(visual);
 
   return (
@@ -368,9 +503,9 @@ export function CallExperience({ slug }: { slug: string }) {
       <header className="call-top">
         <span className="wordmark">cordada</span>
         <AnimatePresence mode="wait">
-          {stage === "call" && phase && (
-            <motion.span key={phase.id} className="pill" {...swap} transition={{ duration: 0.35 }}>
-              {phase.name}
+          {stage === "call" && packet && (
+            <motion.span key={packet.phase + packet.depth} className="pill" {...swap} transition={{ duration: 0.35 }}>
+              {packet.name}
             </motion.span>
           )}
         </AnimatePresence>
@@ -391,115 +526,75 @@ export function CallExperience({ slug }: { slug: string }) {
         <AnimatePresence mode="wait">
           {stage === "lobby" && (
             <motion.section key="lobby" className="panel" {...swap}>
-              <h1>{member.name}, your plan is ready to talk through.</h1>
-              <p>
-                Six minutes, out loud. You will be talking with an AI guide from your advisor&apos;s team, and you can
-                interrupt it at any point.
-              </p>
-              {data.members.length > 1 && (
-                <div className="segmented" role="group" aria-label="Who is talking">
-                  {data.members.map((m) => (
-                    <button key={m.id} aria-pressed={m.id === member.id} onClick={() => setMember(m)}>
-                      {m.id === member.id && <motion.i layoutId="seg" transition={spring} />}
-                      <span>{m.name}</span>
-                    </button>
-                  ))}
-                </div>
+              {token === null ? (
+                <>
+                  <h1>Open this from your personal link.</h1>
+                  <p>Your advisor sends each person their own link, so the plan you hear is yours.</p>
+                  <Link className="btn btn-ink" href="/">
+                    Choose a family
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <h1>{me ? `${me.name}, your plan is ready to talk through.` : "Your plan is ready to talk through."}</h1>
+                  <p>
+                    A few minutes, out loud. You will be talking with an AI guide from your advisor&apos;s team, and you can
+                    interrupt it at any point.
+                  </p>
+                  <button className="btn btn-ink" onClick={start} disabled={!me}>
+                    Start the conversation
+                  </button>
+                  <label className="check">
+                    <input type="checkbox" checked={!soundOn} onChange={(e) => setSoundOn(!e.target.checked)} />
+                    Captions only, no sound
+                  </label>
+                </>
               )}
-              <button className="btn btn-ink" onClick={start}>
-                Start the conversation
-              </button>
-              <label className="check">
-                <input type="checkbox" checked={!soundOn} onChange={(e) => setSoundOn(!e.target.checked)} />
-                Captions only, no sound
-              </label>
+            </motion.section>
+          )}
+
+          {stage === "error" && (
+            <motion.section key="error" className="panel" {...swap}>
+              <h1>We could not open your plan.</h1>
+              <p>{error} Reload the page to try again.</p>
+              <Link className="btn btn-ink" href="/">
+                Back to the start
+              </Link>
             </motion.section>
           )}
 
           {stage === "done" && (
             <motion.section key="done" className="panel" {...swap}>
               <span className="pill is-blue">
-                {accepted ? when.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : "Whenever you are ready"}
+                {goal?.due ? due.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : "Whenever you are ready"}
               </span>
-              <h1>{data.step.title}</h1>
-              <p>{data.step.detail}</p>
+              <h1>{closing?.title ?? "Thanks for talking it through."}</h1>
+              {closing?.detail && <p>{closing.detail}</p>}
               <div className="row">
-                <button
-                  className="btn btn-ink"
-                  onClick={() =>
-                    downloadIcs({
-                      title: data.step.title,
-                      description: `${data.step.detail}\n\nTalk it through again: ${location.origin}/call/${slug}`,
-                      start: when,
-                    })
-                  }
-                >
-                  Add to calendar
+                {closing && (
+                  <button
+                    className="btn btn-ink"
+                    onClick={() =>
+                      downloadIcs({
+                        title: closing.title,
+                        description: `${closing.detail}\n\nTalk it through again: ${location.href}`,
+                        start: due,
+                      })
+                    }
+                  >
+                    Add to calendar
+                  </button>
+                )}
+                <button className="btn btn-line" onClick={() => setStage("lobby")}>
+                  Talk it through again
                 </button>
-                <Link className="btn btn-line" href={`/home/${slug}`}>
-                  See your steps
-                </Link>
               </div>
-              <button className="text-link" onClick={() => setStage("lobby")}>
-                Talk it through again
-              </button>
             </motion.section>
           )}
 
           {stage === "call" && visual && (
-            <motion.section key={visual.kind} className="stage" {...swap}>
-              {visual.kind === "figure" && (
-                <div className="v-figure">
-                  <div className="ring">
-                    <svg viewBox="0 0 120 120" aria-hidden="true">
-                      <circle cx="60" cy="60" r="52" className="ring-track" />
-                      <motion.circle
-                        cx="60"
-                        cy="60"
-                        r="52"
-                        className="ring-fill"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: visual.share }}
-                        transition={{ duration: Math.max(1.6, seconds * 0.8), ease: [0.2, 0.7, 0.2, 1], delay: 0.5 }}
-                      />
-                    </svg>
-                    <span>
-                      {Math.round(visual.share * 100)}%<small>{visual.shareLabel}</small>
-                    </span>
-                  </div>
-                  <strong>
-                    <Count to={visual.amount} seconds={Math.min(2.2, seconds * 0.45)} />
-                  </strong>
-                  <p>{visual.sentence}</p>
-                </div>
-              )}
-              {visual.kind === "ridge" && <Ridge yearly={data.yearly} toAge={visual.toAge} flags={visual.flags} seconds={seconds} />}
-              {visual.kind === "compare" && (
-                <div className="v-compare">
-                  <AnimatePresence>
-                    {visual.rows.map((r) => (
-                      <motion.div key={r.label} layout className={r.tone === "attention" ? "is-attention" : ""} {...swap}>
-                        <strong>
-                          <Count to={r.amount} seconds={1.6} />
-                        </strong>
-                        <span>{r.label}</span>
-                        <motion.i
-                          initial={{ scaleX: 0 }}
-                          animate={{ scaleX: Math.max(0.012, r.amount / visual.rows[0].amount) }}
-                          transition={{ type: "spring", stiffness: 60, damping: 16, delay: 0.3 }}
-                        />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              )}
-              {visual.kind === "step" && (
-                <div className="v-step">
-                  <span className="pill is-blue">This week</span>
-                  <strong>{data.step.title}</strong>
-                  <p>{data.step.detail}</p>
-                </div>
-              )}
+            <motion.section key={`${packet?.phase}-${packet?.depth}-${visual.kind}`} className="stage" {...swap}>
+              <Stage visual={visual} yearly={yearly} seconds={seconds} />
             </motion.section>
           )}
         </AnimatePresence>

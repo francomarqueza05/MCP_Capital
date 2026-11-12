@@ -198,7 +198,8 @@ export function packet(c: CaseData, s: SessionState): Packet {
         facts: facts.map(spoken),
         planSays: [c.narrative.summary_main].filter(Boolean),
         analogy: simple ? topicById("score")!.analogy : null,
-        visual: good[0] ? { kind: "figure", fact: spoken(good[0]) } : { kind: "figure", fact: spoken(score) },
+        // Never open on the score: show a strength, else the strongest area.
+        visual: { kind: "figure", fact: spoken(good[0] ?? pillarFact ?? score) },
         ask: [],
         exit: "They have heard one strength and know where the score stands.",
         fallback: [

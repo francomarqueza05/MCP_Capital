@@ -26,6 +26,9 @@ const icons: Record<string, string> = {
   cap: "M3 10l9-4 9 4-9 4-9-4Zm4 2.5V16c2.5 2 7.5 2 10 0v-3.5",
 };
 
+const iconFor = (label: string, tone?: string) =>
+  tone === "attention" ? "alert" : /stop work|retire/i.test(label) ? "rest" : /college|school/i.test(label) ? "cap" : "home";
+
 // The plan drawn live: the line advances while the guide talks about those years,
 // with a glowing head that reads out the age and the amount it is passing through.
 export function Ridge({
@@ -128,7 +131,7 @@ export function Ridge({
               >
                 <line x1={px} x2={px} y1={g.y(Math.max(p.investable, 0))} y2={g.y(0)} />
                 <circle cx={px} cy={g.y(0)} r="15" />
-                <path d={icons[flag.icon ?? "home"]} transform={`translate(${px - 12} ${g.y(0) - 12})`} />
+                <path d={icons[flag.icon ?? iconFor(flag.label, flag.tone)]} transform={`translate(${px - 12} ${g.y(0) - 12})`} />
                 <text x={px} y={H - 8} textAnchor={px > W * 0.8 ? "end" : px < W * 0.15 ? "start" : "middle"}>
                   {flag.label}
                 </text>

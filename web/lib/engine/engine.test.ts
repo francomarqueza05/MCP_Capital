@@ -43,6 +43,8 @@ test("every conversation starts with discovery, never with bad news, and ends wi
     assert.equal(packets[0].phase, "discovery");
     assert.equal(packets[0].facts.length, 0, "no figures before we know them");
     assert.equal(packets[1].phase, "today");
+    const v = packets[1].visual;
+    assert.ok(v.kind !== "figure" || v.fact.id !== "score", `${id}: the score is never the first thing shown`);
     assert.equal(packets.at(-1)!.phase, "commit");
     assert.ok(s.done);
     assert.deepEqual(new Set(packets.map((p) => p.phase)).size, packets.length, "no phase repeats");
