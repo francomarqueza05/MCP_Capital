@@ -14,9 +14,12 @@ const audio = (buf: Buffer) =>
   new Response(new Uint8Array(buf), { headers: { "content-type": "audio/mpeg", "cache-control": "private, max-age=86400" } });
 
 /** First choice: the hackathon proxy, paid from the team's credits. */
+// When the proxy fails, skip it for a while instead of paying its round trip on every line.
+let proxyDownUntil = 0;
+
 async function viaProxy(text: string): Promise<Buffer | null> {
   const key = process.env.TEAM_KEY;
-  if (!key) return null;
+  if (!key || Date.now() < proxyDownUntil) return null;
   const proxy = (process.env.LLM_PROXY_URL ?? "https://llm-hackathon.sherpaswealth.com").replace(/\/$/, "");
   const res = await fetch(`${proxy}/v1/audio/speech`, {
     method: "POST",
@@ -24,7 +27,8 @@ async function viaProxy(text: string): Promise<Buffer | null> {
     body: JSON.stringify({ model: MODEL, voice: VOICE, input: text, response_format: "mp3" }),
   }).catch(() => null);
   if (res?.ok) return Buffer.from(await res.arrayBuffer());
-  console.error("speech via proxy failed", res?.status, (await res?.text().catch(() => ""))?.slice(0, 160));
+  proxyDownUntil = Date.now() + 10 * 60_000;
+  console.error("speech via proxy failed, skipping it for 10 minutes", res?.status, (await res?.text().catch(() => ""))?.slice(0, 160));
   return null;
 }
 
