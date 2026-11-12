@@ -16,3 +16,11 @@ build/
 .DS_Store
 .idea/
 .vscode/
+
+# Cordada
+.env
+.env.*
+!.env.example
+keys.txt
+node_modules/
+.next/

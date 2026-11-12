@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cordada-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "D:/PROYECTOS/MCP_Capital/web", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

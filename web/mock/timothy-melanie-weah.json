@@ -1,0 +1,427 @@
+{
+ "slug": "timothy-melanie-weah",
+ "city": "San Francisco",
+ "state": "CA",
+ "household": [
+  {
+   "first_name": "Timothy",
+   "role": "client",
+   "age": 40,
+   "retirement_age": 62,
+   "employment": "EMPLOYED",
+   "risk_profile": "Growth"
+  },
+  {
+   "first_name": "Melanie",
+   "role": "co-client",
+   "age": 38,
+   "retirement_age": 60,
+   "employment": "EMPLOYED",
+   "risk_profile": "Moderate"
+  },
+  {
+   "first_name": "Liam",
+   "role": "child",
+   "age": 6
+  },
+  {
+   "first_name": "Josh",
+   "role": "child",
+   "age": 3
+  }
+ ],
+ "score": {
+  "value": 60,
+  "band": "stable",
+  "pillars": [
+   {
+    "pillar": "Savings and cash flow",
+    "score": 86,
+    "points_shown_in_app": "26/30"
+   },
+   {
+    "pillar": "Debt",
+    "score": 58,
+    "points_shown_in_app": "12/20"
+   },
+   {
+    "pillar": "Investments",
+    "score": 56,
+    "points_shown_in_app": "8/15"
+   },
+   {
+    "pillar": "Liquidity and emergency fund",
+    "score": 100,
+    "points_shown_in_app": "15/15"
+   },
+   {
+    "pillar": "Insurance and protection",
+    "score": 37,
+    "points_shown_in_app": "7/20"
+   }
+  ]
+ },
+ "goals": [
+  {
+   "year": 2027,
+   "type": "VACATION",
+   "name": "Go on vacation"
+  },
+  {
+   "year": 2028,
+   "type": "PURCHASE",
+   "name": "Purchase a vehicle"
+  },
+  {
+   "year": 2030,
+   "type": "PURCHASE",
+   "name": "Purchase a home"
+  },
+  {
+   "year": 2038,
+   "type": "COLLEGE",
+   "name": "College Liam"
+  },
+  {
+   "year": 2041,
+   "type": "COLLEGE",
+   "name": "College Josh"
+  },
+  {
+   "year": 2048,
+   "type": "RETIREMENT",
+   "name": "Melanie's Retirement"
+  },
+  {
+   "year": 2048,
+   "type": "RETIREMENT",
+   "name": "Timothy's Retirement"
+  }
+ ],
+ "yearly": [
+  {
+   "year": 2026,
+   "age": 40,
+   "investable": 371588,
+   "netWorth": 712086
+  },
+  {
+   "year": 2027,
+   "age": 41,
+   "investable": 449278,
+   "netWorth": 823317
+  },
+  {
+   "year": 2028,
+   "age": 42,
+   "investable": 524488,
+   "netWorth": 945346
+  },
+  {
+   "year": 2029,
+   "age": 43,
+   "investable": 614300,
+   "netWorth": 1044059
+  },
+  {
+   "year": 2030,
+   "age": 44,
+   "investable": 561863,
+   "netWorth": 1163031
+  },
+  {
+   "year": 2031,
+   "age": 45,
+   "investable": 663135,
+   "netWorth": 1307142
+  },
+  {
+   "year": 2032,
+   "age": 46,
+   "investable": 772423,
+   "netWorth": 1460964
+  },
+  {
+   "year": 2033,
+   "age": 47,
+   "investable": 890605,
+   "netWorth": 1621060
+  },
+  {
+   "year": 2034,
+   "age": 48,
+   "investable": 1018840,
+   "netWorth": 1790331
+  },
+  {
+   "year": 2035,
+   "age": 49,
+   "investable": 1157086,
+   "netWorth": 1972378
+  },
+  {
+   "year": 2036,
+   "age": 50,
+   "investable": 1306111,
+   "netWorth": 2167951
+  },
+  {
+   "year": 2037,
+   "age": 51,
+   "investable": 1466740,
+   "netWorth": 2377773
+  },
+  {
+   "year": 2038,
+   "age": 52,
+   "investable": 1622749,
+   "netWorth": 2585588
+  },
+  {
+   "year": 2039,
+   "age": 53,
+   "investable": 1791106,
+   "netWorth": 2807491
+  },
+  {
+   "year": 2040,
+   "age": 54,
+   "investable": 1972706,
+   "netWorth": 3042480
+  },
+  {
+   "year": 2041,
+   "age": 55,
+   "investable": 2143579,
+   "netWorth": 3265261
+  },
+  {
+   "year": 2042,
+   "age": 56,
+   "investable": 2351109,
+   "netWorth": 3532509
+  },
+  {
+   "year": 2043,
+   "age": 57,
+   "investable": 2573911,
+   "netWorth": 3817378
+  },
+  {
+   "year": 2044,
+   "age": 58,
+   "investable": 2813143,
+   "netWorth": 4121133
+  },
+  {
+   "year": 2045,
+   "age": 59,
+   "investable": 3094139,
+   "netWorth": 4469226
+  },
+  {
+   "year": 2046,
+   "age": 60,
+   "investable": 3396816,
+   "netWorth": 4841694
+  },
+  {
+   "year": 2047,
+   "age": 61,
+   "investable": 3722822,
+   "netWorth": 5240317
+  },
+  {
+   "year": 2048,
+   "age": 62,
+   "investable": 3849106,
+   "netWorth": 5442180
+  },
+  {
+   "year": 2049,
+   "age": 63,
+   "investable": 3881366,
+   "netWorth": 5553124
+  },
+  {
+   "year": 2050,
+   "age": 64,
+   "investable": 3909846,
+   "netWorth": 5663547
+  },
+  {
+   "year": 2051,
+   "age": 65,
+   "investable": 3926498,
+   "netWorth": 5765563
+  },
+  {
+   "year": 2052,
+   "age": 66,
+   "investable": 3934690,
+   "netWorth": 5862710
+  },
+  {
+   "year": 2053,
+   "age": 67,
+   "investable": 4146811,
+   "netWorth": 6167559
+  },
+  {
+   "year": 2054,
+   "age": 68,
+   "investable": 4437961,
+   "netWorth": 6555401
+  },
+  {
+   "year": 2055,
+   "age": 69,
+   "investable": 4773543,
+   "netWorth": 6991844
+  },
+  {
+   "year": 2056,
+   "age": 70,
+   "investable": 5134524,
+   "netWorth": 7458069
+  },
+  {
+   "year": 2057,
+   "age": 71,
+   "investable": 5522827,
+   "netWorth": 7956228
+  },
+  {
+   "year": 2058,
+   "age": 72,
+   "investable": 5940523,
+   "netWorth": 8488634
+  },
+  {
+   "year": 2059,
+   "age": 73,
+   "investable": 6389838,
+   "netWorth": 9057769
+  },
+  {
+   "year": 2060,
+   "age": 74,
+   "investable": 6873168,
+   "netWorth": 9621762
+  },
+  {
+   "year": 2061,
+   "age": 75,
+   "investable": 7239265,
+   "netWorth": 10070976
+  },
+  {
+   "year": 2062,
+   "age": 76,
+   "investable": 7621320,
+   "netWorth": 10538674
+  },
+  {
+   "year": 2063,
+   "age": 77,
+   "investable": 7889132,
+   "netWorth": 10894736
+  },
+  {
+   "year": 2064,
+   "age": 78,
+   "investable": 8154877,
+   "netWorth": 11251414
+  },
+  {
+   "year": 2065,
+   "age": 79,
+   "investable": 8417479,
+   "netWorth": 11607716
+  },
+  {
+   "year": 2066,
+   "age": 80,
+   "investable": 8674407,
+   "netWorth": 11961193
+  },
+  {
+   "year": 2067,
+   "age": 81,
+   "investable": 8924657,
+   "netWorth": 12310930
+  },
+  {
+   "year": 2068,
+   "age": 82,
+   "investable": 9164697,
+   "netWorth": 12653482
+  },
+  {
+   "year": 2069,
+   "age": 83,
+   "investable": 9394271,
+   "netWorth": 12988685
+  },
+  {
+   "year": 2070,
+   "age": 84,
+   "investable": 9608081,
+   "netWorth": 13311338
+  },
+  {
+   "year": 2071,
+   "age": 85,
+   "investable": 9805864,
+   "netWorth": 13621274
+  },
+  {
+   "year": 2072,
+   "age": 86,
+   "investable": 9983203,
+   "netWorth": 13914178
+  },
+  {
+   "year": 2073,
+   "age": 87,
+   "investable": 10138033,
+   "netWorth": 14188088
+  },
+  {
+   "year": 2074,
+   "age": 88,
+   "investable": 10269474,
+   "netWorth": 14442231
+  },
+  {
+   "year": 2075,
+   "age": 89,
+   "investable": 10371279,
+   "netWorth": 14670470
+  },
+  {
+   "year": 2076,
+   "age": 90,
+   "investable": 10444903,
+   "netWorth": 14874373
+  },
+  {
+   "year": 2077,
+   "age": 91,
+   "investable": 10771100,
+   "netWorth": 15334811
+  },
+  {
+   "year": 2078,
+   "age": 92,
+   "investable": 11255558,
+   "netWorth": 15957595
+  },
+  {
+   "year": 2079,
+   "age": 93,
+   "investable": 11378578,
+   "netWorth": 16115848
+  }
+ ]
+}
