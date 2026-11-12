@@ -49,7 +49,8 @@ export function Count({ to, seconds = 1.4 }: { to: number; seconds?: number }) {
 /** The sentence being spoken, lit word by word as the audio reaches it. */
 export function Caption({ text, progress }: { text: string; progress: number }) {
   const parts = useMemo(() => {
-    const sentences = text.match(/[^.?!]+[.?!]+["']?\s*/g) ?? [text];
+    // The last sentence may still be arriving without its full stop: keep it too.
+    const sentences = text.match(/[^.?!]+(?:[.?!]+["'»]?\s*|$)/g) ?? [text];
     let at = 0;
     return sentences.map((s) => {
       const start = at;
@@ -59,9 +60,14 @@ export function Caption({ text, progress }: { text: string; progress: number }) 
   }, [text]);
   const pos = progress * text.length;
   const cur = parts.find((p) => pos < p.end) ?? parts[parts.length - 1];
+  // A word lights up the moment the voice reaches its first letter.
   const words = cur.s.split(" ");
-  const inside = Math.max(0, pos - cur.start) / Math.max(1, cur.end - cur.start);
-  const said = Math.ceil(inside * words.length + 0.4);
+  let at = text.indexOf(cur.s, cur.start);
+  const said = words.filter((w) => {
+    const first = at;
+    at += w.length + 1;
+    return first < pos;
+  }).length;
   return (
     <div className="caption" aria-live="polite">
       <AnimatePresence mode="wait">
@@ -606,24 +612,32 @@ export function CallExperience({ slug }: { slug: string }) {
             <i />
             {stateWords[state]}
           </p>
-          {captionsOn && line && <Caption text={line} progress={progress} />}
-          <AnimatePresence>
+          {/* One fixed-height box: the caption while the guide talks, the answer options when it asks.
+              Nothing above it moves when either appears. */}
+          <div className="foot-main">
+            <AnimatePresence initial={false}>
+              {!chips && captionsOn && line && (
+                <motion.div key="caption" className="foot-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+                  <Caption text={line} progress={progress} />
+                </motion.div>
+              )}
             {chips && (
-              <motion.div className="chips" initial="hide" animate="show" exit="hide" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
-                {(chips.length ? chips : ["Continue"]).map((c) => (
-                  <motion.button
-                    key={c}
-                    variants={{ hide: { opacity: 0, y: 14, scale: 0.9 }, show: { opacity: 1, y: 0, scale: 1 } }}
-                    transition={spring}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => answer.current?.(chips.length ? c : null)}
-                  >
-                    {c}
-                  </motion.button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <motion.div key="chips" className="chips foot-layer" initial="hide" animate="show" exit="hide" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
+                  {(chips.length ? chips : ["Continue"]).map((c) => (
+                    <motion.button
+                      key={c}
+                      variants={{ hide: { opacity: 0, y: 14, scale: 0.9 }, show: { opacity: 1, y: 0, scale: 1 } }}
+                      transition={spring}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => answer.current?.(chips.length ? c : null)}
+                    >
+                      {c}
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           <div className="dock">
             <button aria-pressed={!micOn} aria-label={micOn ? "Mute microphone" : "Unmute microphone"} onClick={() => setMicOn((v) => !v)}>
               <Icon d={micOn ? MIC : MIC_OFF} />

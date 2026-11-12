@@ -1197,6 +1197,85 @@ body:has(.call) {
   }
 }
 
+/* ---------- A call screen that never jumps ----------
+   The page is exactly one screen tall, the footer has a fixed height, and the visual always
+   gets the same space. Captions, answer options and visuals change inside fixed boxes. */
+
+.call.is-call {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.call.is-call .call-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.call.is-compact .call-body {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.call.is-compact .stage {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.foot-main {
+  position: relative;
+  width: 100%;
+  height: 6.8rem;
+}
+
+.foot-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.foot-layer.chips {
+  align-content: center;
+  flex-wrap: wrap;
+}
+
+.foot-main .caption {
+  min-height: 0;
+  height: 100%;
+}
+
+.foot-main .caption p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.call-foot .status {
+  height: 1.4em;
+}
+
+@media (min-width: 900px) {
+  .foot-main {
+    height: 7.6rem;
+  }
+
+  .call.is-compact .call-body {
+    justify-content: center;
+    gap: 56px;
+  }
+
+  .call.is-compact .stage {
+    flex: 0 1 640px;
+    height: min(56dvh, 520px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

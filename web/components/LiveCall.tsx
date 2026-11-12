@@ -112,6 +112,13 @@ function Live({ slug }: { slug: string }) {
   const sessionId = useRef<string | null>(null);
   const finished = useRef(false);
   const lineStart = useRef(0);
+  const lineLen = useRef(1);
+  // Exact caption timing: each audio chunk's characters with their start times, stamped with
+  // the moment the chunk started playing. The caption lights each character as it is voiced.
+  const segs = useRef<{ t0: number; starts: number[] }[]>([]);
+  const said = useRef("");
+  const aligned = useRef(false);
+  const turnOver = useRef(true);
 
   const api = useCallback(
     async <R,>(path: string, init: RequestInit = {}): Promise<R> => {
@@ -178,13 +185,33 @@ function Live({ slug }: { slug: string }) {
         }
       },
     },
+    onAudioAlignmentPlayback: ({ alignment }) => {
+      if (!alignment?.chars?.length) return;
+      if (turnOver.current) {
+        segs.current = [];
+        said.current = "";
+        turnOver.current = false;
+      }
+      aligned.current = true;
+      segs.current.push({ t0: performance.now(), starts: alignment.char_start_times_ms });
+      said.current += alignment.chars.join("");
+      setLine(said.current);
+    },
+    onModeChange: ({ mode }) => {
+      if (mode === "listening") turnOver.current = true;
+    },
     onMessage: (m) => {
+      // Without timing data (or before it arrives) fall back to the full reply at speaking pace.
+      if (aligned.current) return;
       if (m.role !== "agent" && m.source !== "ai") return;
       lineStart.current = performance.now();
+      lineLen.current = m.message.length;
       setProgress(0);
       setLine(m.message);
     },
     onInterruption: () => {
+      turnOver.current = true;
+      segs.current = [];
       setCut(true);
       setTimeout(() => setCut(false), 700);
     },
@@ -232,8 +259,18 @@ function Live({ slug }: { slug: string }) {
       level.current = lv;
       root.current?.style.setProperty("--lv", lv.toFixed(3));
       // Light the caption at speaking pace while the agent talks.
-      if (s === "speaking") {
-        setProgress((p) => (p >= 1 ? p : Math.min(1, (performance.now() - lineStart.current) / 1000 / 4.5)));
+      if (s === "speaking" && aligned.current && segs.current.length) {
+        const now = performance.now();
+        let played = 0;
+        for (const seg of segs.current) for (const st of seg.starts) if (seg.t0 + st <= now) played++;
+        const total = Math.max(1, said.current.length);
+        setProgress((p) => {
+          const next = Math.min(1, played / total);
+          return Math.abs(next - p) < 0.002 ? p : next;
+        });
+      } else if (s === "speaking") {
+        // About 14 characters a second is the pace of the voice.
+        setProgress((p) => (p >= 1 ? p : Math.min(1, ((performance.now() - lineStart.current) / 1000) * 14 / Math.max(1, lineLen.current))));
       }
       raf = requestAnimationFrame(tick);
     };
@@ -268,15 +305,15 @@ function Live({ slug }: { slug: string }) {
       const [view, ridge, voice] = await Promise.all([
         api<View>("/sessions", { method: "POST", body: JSON.stringify({ lang }) }),
         api<{ yearly: YearPoint[] }>("/visuals/ridge"),
-        api<{ token: string }>("/voice/token", { method: "POST", body: "{}" }),
+        api<{ signedUrl: string }>("/voice/token", { method: "POST", body: "{}" }),
       ]);
       sessionId.current = view.session.id;
       setYearly(ridge.yearly);
       show(view.packet);
       const p = view.persona;
       conversation.startSession({
-        conversationToken: voice.token,
-        connectionType: "webrtc",
+        signedUrl: voice.signedUrl,
+        connectionType: "websocket",
         overrides: { agent: { language: lang } },
         dynamicVariables: {
           name: p.name,
@@ -413,24 +450,32 @@ function Live({ slug }: { slug: string }) {
             <i />
             {status === "connecting" ? t.connecting : t.states[state]}
           </p>
-          {captionsOn && line && <Caption text={line} progress={progress} />}
-          <AnimatePresence>
+          {/* One fixed-height box: the caption while the guide talks, the answer options when it asks.
+              Nothing above it moves when either appears. */}
+          <div className="foot-main">
+            <AnimatePresence initial={false}>
+              {!chips && captionsOn && line && (
+                <motion.div key="caption" className="foot-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+                  <Caption text={line} progress={progress} />
+                </motion.div>
+              )}
             {chips && (
-              <motion.div className="chips" initial="hide" animate="show" exit="hide" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
-                {chips.map((c) => (
-                  <motion.button
-                    key={c}
-                    variants={{ hide: { opacity: 0, y: 14, scale: 0.9 }, show: { opacity: 1, y: 0, scale: 1 } }}
-                    transition={spring}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => conversation.sendUserMessage(c)}
-                  >
-                    {c}
-                  </motion.button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <motion.div key="chips" className="chips foot-layer" initial="hide" animate="show" exit="hide" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
+                  {chips.map((c) => (
+                    <motion.button
+                      key={c}
+                      variants={{ hide: { opacity: 0, y: 14, scale: 0.9 }, show: { opacity: 1, y: 0, scale: 1 } }}
+                      transition={spring}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => conversation.sendUserMessage(c)}
+                    >
+                      {c}
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           <div className="dock">
             <button
               aria-pressed={conversation.isMuted}

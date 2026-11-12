@@ -4,7 +4,8 @@
 // so the prompt and tools live here in git, not only in the ElevenLabs dashboard.
 const KEY = process.env.ELEVENLABS_API_KEY;
 const AGENT = process.env.ELEVENLABS_AGENT_ID;
-const VOICE = process.env.VOICE_ID ?? "EXAVITQu4vr4xnSDxMaL";
+const VOICE = process.env.VOICE_ID ?? "dNjJKg63Fr5AXwIdkATa"; // Cristina: warm, neutral Castilian Spanish
+const VOICE_EN = process.env.VOICE_ID_EN ?? "EXAVITQu4vr4xnSDxMaL"; // Sarah, for English
 const LLM = process.env.AGENT_LLM ?? "gemini-3.5-flash"; // fast, good Spanish, parallel tool calls
 if (!KEY) throw new Error("ELEVENLABS_API_KEY missing: run with --env-file=../.env");
 
@@ -125,7 +126,7 @@ const body = {
       },
     },
     language_presets: {
-      en: { overrides: { agent: { first_message: FIRST.en, language: "en" } } },
+      en: { overrides: { agent: { first_message: FIRST.en, language: "en" }, tts: { voice_id: VOICE_EN } } },
     },
     tts: { voice_id: VOICE, model_id: "eleven_flash_v2_5" },
     turn: { turn_timeout: 7 },
