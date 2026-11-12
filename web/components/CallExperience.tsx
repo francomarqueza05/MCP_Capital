@@ -11,8 +11,8 @@ import { Ridge } from "./Ridge";
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
-const spring = { type: "spring", stiffness: 260, damping: 26 } as const;
-const swap = {
+export const spring = { type: "spring", stiffness: 260, damping: 26 } as const;
+export const swap = {
   initial: { opacity: 0, y: 28, scale: 0.94, filter: "blur(12px)" },
   animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" },
   exit: { opacity: 0, y: -18, scale: 0.97, filter: "blur(10px)" },
@@ -33,7 +33,7 @@ type Goal = { id: string; title: string; detail: string; due: string | null };
 type DoneReply = { packet: Packet | null; goal: Goal | null; session: { done: boolean } };
 
 /** A number that counts up when it appears, in step with the voice saying it. */
-function Count({ to, seconds = 1.4 }: { to: number; seconds?: number }) {
+export function Count({ to, seconds = 1.4 }: { to: number; seconds?: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const c = animate(0, to, {
@@ -47,7 +47,7 @@ function Count({ to, seconds = 1.4 }: { to: number; seconds?: number }) {
 }
 
 /** The sentence being spoken, lit word by word as the audio reaches it. */
-function Caption({ text, progress }: { text: string; progress: number }) {
+export function Caption({ text, progress }: { text: string; progress: number }) {
   const parts = useMemo(() => {
     const sentences = text.match(/[^.?!]+[.?!]+["']?\s*/g) ?? [text];
     let at = 0;
@@ -84,7 +84,7 @@ function Caption({ text, progress }: { text: string; progress: number }) {
 }
 
 /** What the plan shows while the guide talks: built from the phase packet, never by the model. */
-function Stage({ visual, yearly, seconds }: { visual: Visual; yearly: YearPoint[] | null; seconds: number }) {
+export function Stage({ visual, yearly, seconds, lang = "en" }: { visual: Visual; yearly: YearPoint[] | null; seconds: number; lang?: "es" | "en" }) {
   if (visual.kind === "figure") {
     const f = visual.fact;
     const money = typeof f.value === "number" && (f.unit === "USD" || f.unit === "USD/yr");
@@ -110,17 +110,17 @@ function Stage({ visual, yearly, seconds }: { visual: Visual; yearly: YearPoint[
         <strong>{money ? <Count to={Math.abs(f.value as number)} seconds={1.8} /> : f.display}</strong>
         <p>
           {f.label}
-          {f.unit === "USD/yr" ? ", per year" : ""}
+          {f.unit === "USD/yr" ? (lang === "es" ? ", al año" : ", per year") : ""}
         </p>
       </div>
     );
   }
-  if (visual.kind === "ridge" && yearly) return <Ridge yearly={yearly} toAge={visual.toAge} flags={visual.flags} seconds={seconds} />;
+  if (visual.kind === "ridge" && yearly) return <Ridge yearly={yearly} toAge={visual.toAge} flags={visual.flags} seconds={seconds} lang={lang} />;
   if (visual.kind === "quote") return <p className="v-quote">{visual.text}</p>;
   if (visual.kind === "step")
     return (
       <div className="v-step">
-        <span className="pill is-blue">This week</span>
+        <span className="pill is-blue">{lang === "es" ? "Esta semana" : "This week"}</span>
         <strong>{visual.title}</strong>
         <p>{visual.detail}</p>
       </div>
@@ -128,15 +128,15 @@ function Stage({ visual, yearly, seconds }: { visual: Visual; yearly: YearPoint[
   return null;
 }
 
-const Icon = ({ d }: { d: string }) => (
+export const Icon = ({ d }: { d: string }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d={d} />
   </svg>
 );
-const MIC = "M12 4a2.5 2.5 0 0 0-2.5 2.5v5a2.5 2.5 0 0 0 5 0v-5A2.5 2.5 0 0 0 12 4ZM6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3";
-const MIC_OFF = "M4 4l16 16M9.5 9.5v2a2.5 2.5 0 0 0 4 2M14.5 10V6.5a2.5 2.5 0 0 0-4.6-1.3M6.5 11.5a5.5 5.5 0 0 0 9 4.2M12 17v3";
-const CC = "M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9ZM10.5 10.5a2 2 0 1 0 0 3M16.5 10.5a2 2 0 1 0 0 3";
-const CLOSE = "M6 6l12 12M18 6 6 18";
+export const MIC = "M12 4a2.5 2.5 0 0 0-2.5 2.5v5a2.5 2.5 0 0 0 5 0v-5A2.5 2.5 0 0 0 12 4ZM6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3";
+export const MIC_OFF = "M4 4l16 16M9.5 9.5v2a2.5 2.5 0 0 0 4 2M14.5 10V6.5a2.5 2.5 0 0 0-4.6-1.3M6.5 11.5a5.5 5.5 0 0 0 9 4.2M12 17v3";
+export const CC = "M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9ZM10.5 10.5a2 2 0 1 0 0 3M16.5 10.5a2 2 0 1 0 0 3";
+export const CLOSE = "M6 6l12 12M18 6 6 18";
 
 // The conversation, driven by the phase engine through /api/v1. The engine sends one packet
 // per phase: what to cover, the figures, the visual and the lines to say. This screen speaks

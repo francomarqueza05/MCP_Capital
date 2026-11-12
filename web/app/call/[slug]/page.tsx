@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { CallExperience } from "@/components/CallExperience";
+import { LiveCall } from "@/components/LiveCall";
 import { caseIds } from "@/lib/cases/load";
 
 export function generateStaticParams() {
@@ -10,7 +11,9 @@ export function generateStaticParams() {
 async function Screen({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   if (!caseIds().includes(slug)) notFound();
-  return <CallExperience slug={slug} />;
+  // The live agent when it is configured; otherwise the scripted guide over the same engine.
+  const live = Boolean(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_AGENT_ID);
+  return live ? <LiveCall slug={slug} /> : <CallExperience slug={slug} />;
 }
 
 // Not async: the page hands the params promise down so the shell renders at once.

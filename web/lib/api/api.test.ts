@@ -23,7 +23,7 @@ const ctx = <T>(params: T) => ({ params: Promise.resolve(params) });
 const post = (body: unknown) => ({ method: "POST", body: JSON.stringify(body) });
 
 test("a full conversation through the API ends in a goal and a next step", async () => {
-  const open = await openSession(req("/api/v1/sessions", timothy, post({})));
+  const open = await openSession(req("/api/v1/sessions", timothy, post({ lang: "en" })));
   assert.equal(open.status, 201);
   const o = await open.json();
   assert.equal(o.packet.phase, "discovery");
@@ -45,28 +45,28 @@ test("a full conversation through the API ends in a goal and a next step", async
   assert.equal(n.source, "goal");
 
   // The next conversation starts from what was learnt.
-  const again = await (await openSession(req("/api/v1/sessions", timothy, post({})))).json();
+  const again = await (await openSession(req("/api/v1/sessions", timothy, post({ lang: "en" })))).json();
   assert.equal(again.persona.worry, "Paying for college");
   assert.match(again.persona.previousConversation, /college/i);
 });
 
 test("nobody reads someone else's conversation or goals", async () => {
-  const o = await (await openSession(req("/api/v1/sessions", timothy, post({})))).json();
+  const o = await (await openSession(req("/api/v1/sessions", timothy, post({ lang: "en" })))).json();
   for (const token of [melanie, michael]) {
     const r = await getSession(req("", token), ctx({ id: o.session.id }));
     assert.equal(r.status, 404);
-    const p = await phaseDone(req("", token, post({})), ctx({ id: o.session.id }));
+    const p = await phaseDone(req("", token, post({ lang: "en" })), ctx({ id: o.session.id }));
     assert.equal(p.status, 404);
   }
   assert.deepEqual(await (await goals(req("/api/v1/goals", melanie))).json(), []);
 });
 
 test("bad or missing tokens and bad input are refused", async () => {
-  assert.equal((await openSession(req("/api/v1/sessions", undefined, post({})))).status, 401);
+  assert.equal((await openSession(req("/api/v1/sessions", undefined, post({ lang: "en" })))).status, 401);
   const forged = timothy.split(".")[0] + ".AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-  assert.equal((await openSession(req("/api/v1/sessions", forged, post({})))).status, 401);
+  assert.equal((await openSession(req("/api/v1/sessions", forged, post({ lang: "en" })))).status, 401);
   assert.equal((await lookup(req("/api/v1/lookup?topic=crypto", timothy))).status, 400);
-  const o = await (await openSession(req("/api/v1/sessions", timothy, post({})))).json();
+  const o = await (await openSession(req("/api/v1/sessions", timothy, post({ lang: "en" })))).json();
   assert.equal((await phaseDone(req("", timothy, post({ understood: "yes" })), ctx({ id: o.session.id }))).status, 400);
   assert.equal((await phaseDone(req("", timothy, { method: "POST", body: "{nope" }), ctx({ id: o.session.id }))).status, 400);
 });

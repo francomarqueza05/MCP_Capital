@@ -30,7 +30,7 @@ export const TOPICS: Topic[] = [
     label: "How I'm doing overall",
     facts: ["score"],
     narrative: ["summary_main"],
-    words: /\b(okay|ok|doing|overall|score|health|good|bad|fine)\b/i,
+    words: /\b(okay|ok|doing|overall|score|health|good|bad|fine|bien|voy|general|puntuaci[oó]n|salud)\b/i,
     analogy: "The score is like a check-up: it points at what to look at first, it is not a grade on you.",
   },
   {
@@ -38,7 +38,7 @@ export const TOPICS: Topic[] = [
     label: "Retirement",
     facts: ["spendingNeed", "guaranteedIncome", "incomeShareOfNeed", "spendingGap", "savingsRunOut", "savingsLeftAtPlanEnd", "withdrawalRateAverage"],
     narrative: ["retirement_short_observations", "retirement_what_to_look_into"],
-    words: /retir|stop work|old age|pension|social security|savings run out|withdraw|401|ira\b/i,
+    words: /retir|stop work|old age|pension|social security|savings run out|withdraw|401|ira\b|jubil|retiro|pensi[oó]n|vejez|dejar de trabajar/i,
     analogy: "Think of retirement savings as a reservoir: you fill it while you work, and the plan checks it lasts as long as you do.",
   },
   {
@@ -46,7 +46,7 @@ export const TOPICS: Topic[] = [
     label: "Cash and safety net",
     facts: ["accessibleCash", "monthsCovered", "emergencyReserve", "cashAboveReserve", "totalCashNeeded", "monthsCoveredAfterNearTermGoals"],
     narrative: ["protection_emergency_fund_short_observations"],
-    words: /cash|reserve|liquid|emergency|cushion|safety net|idle|down ?payment/i,
+    words: /cash|reserve|liquid|emergency|cushion|safety net|idle|down ?payment|efectivo|colch[oó]n|emergencia|ahorro de reserva|entrada/i,
     analogy: "The reserve is the months you could keep living normally if income stopped tomorrow.",
   },
   {
@@ -54,7 +54,7 @@ export const TOPICS: Topic[] = [
     label: "Monthly cash flow",
     facts: ["netCashFlowThisYear"],
     narrative: ["savings_short_observations", "savings_what_to_look_into"],
-    words: /cash ?flow|budget|spend|shortfall|month to month|savings rate|save more/i,
+    words: /cash ?flow|budget|spend|shortfall|month to month|savings rate|save more|presupuesto|gasto|llegar a fin de mes|flujo/i,
     analogy: "Cash flow is what is left of each paycheck after everything that goes out.",
   },
   {
@@ -62,7 +62,7 @@ export const TOPICS: Topic[] = [
     label: "Debt",
     facts: [],
     narrative: ["debt_short_observations", "debt_what_to_look_into"],
-    words: /debt|card|loan|mortgage|interest|owe/i,
+    words: /debt|card|loan|mortgage|interest|owe|deuda|tarjeta|pr[eé]stamo|hipoteca|inter[eé]s/i,
     analogy: "High-interest debt works like savings in reverse: it grows against you every month.",
   },
   {
@@ -70,7 +70,7 @@ export const TOPICS: Topic[] = [
     label: "Insurance and protection",
     facts: [],
     narrative: ["protection_intro", "protection_life_insurance_short_observations", "protection_umbrella_short_observations"],
-    words: /insur|life cover|umbrella|disab|protect|if something happen|die|death|kids safe|safe/i,
+    words: /insur|life cover|umbrella|disab|protect|if something happen|die|death|kids safe|safe|seguro|proteg|si me pasa|morir|muerte|hijos a salvo/i,
     analogy: "Insurance is renting a safety net, so one bad day cannot undo years of saving.",
   },
   {
@@ -78,7 +78,7 @@ export const TOPICS: Topic[] = [
     label: "College",
     facts: [],
     narrative: ["savings_short_observations"],
-    words: /college|529|educat|tuition|school|universit/i,
+    words: /college|529|educat|tuition|school|universit|estudios|colegio|matr[ií]cula/i,
     analogy: "College saving is one more goal with a fixed date, so time is the main ingredient.",
   },
   {
@@ -86,7 +86,7 @@ export const TOPICS: Topic[] = [
     label: "Investments",
     facts: [],
     narrative: ["assets_short_observations", "assets_what_to_look_into"],
-    words: /invest|stock|portfolio|allocation|risk|market|concentrat|etf|bond/i,
+    words: /invest|stock|portfolio|allocation|risk|market|concentrat|etf|bond|inversi|acciones|cartera|riesgo|mercado|bolsa/i,
     analogy: "Your mix of investments decides how bumpy the ride is, and how far it can go.",
   },
   {
@@ -94,7 +94,7 @@ export const TOPICS: Topic[] = [
     label: "Buying a home",
     facts: ["accessibleCash", "totalCashNeeded"],
     narrative: ["summary_main"],
-    words: /home|house|buy(ing)? a|purchase|apartment|condo/i,
+    words: /home|house|buy(ing)? a|purchase|apartment|condo|casa|vivienda|piso|comprar/i,
     analogy: "Money for a purchase in the next year or two is short-term money: it should not ride the market.",
   },
 ];

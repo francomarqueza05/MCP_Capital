@@ -36,11 +36,13 @@ export function Ridge({
   toAge,
   flags,
   seconds,
+  lang = "en",
 }: {
   yearly: YearPoint[];
   toAge: number;
   flags: RidgeFlag[];
   seconds: number;
+  lang?: "es" | "en";
 }) {
   const id = useId();
   const g = useMemo(() => {
@@ -80,7 +82,7 @@ export function Ridge({
   const top = useTransform(f, (v) => `${(g.y(Math.max(g.sample(v).v, 0)) / H) * 100}%`);
   const readout = useTransform(f, (v) => {
     const s = g.sample(v);
-    return `${money(Math.max(0, s.v))} at ${Math.round(s.age)}`;
+    return lang === "es" ? `${money(Math.max(0, s.v))} a los ${Math.round(s.age)}` : `${money(Math.max(0, s.v))} at ${Math.round(s.age)}`;
   });
 
   return (
@@ -145,7 +147,7 @@ export function Ridge({
           {readout}
         </motion.span>
       </div>
-      <figcaption>Savings and investments by age</figcaption>
+      <figcaption>{lang === "es" ? "Ahorros e inversiones por edad" : "Savings and investments by age"}</figcaption>
     </figure>
   );
 }

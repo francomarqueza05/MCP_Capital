@@ -4,6 +4,8 @@ import { advance, firstStep, focusConcern, packet, startState, type DoneInput, t
 import { concernTopic } from "../engine/topics";
 import { store, type Owner, type Session } from "../store/store";
 import { ApiError } from "./http";
+import { agentBrief, localize } from "../i18n/packet";
+import { asLang, type Lang } from "../i18n/translate";
 
 /** Layer 1 of the context: who the guide is talking to. */
 export function personaFor(c: CaseData, m: Member, s: SessionState, previous: string | null) {
@@ -15,6 +17,7 @@ export function personaFor(c: CaseData, m: Member, s: SessionState, previous: st
       children: c.children.map((k) => `${k.name} (${k.age})`),
       place: c.place,
     },
+    language: s.profile.lang,
     level: s.profile.level,
     worry: s.profile.worry,
     worryTopic: s.profile.worryTopic,
@@ -25,11 +28,16 @@ export function personaFor(c: CaseData, m: Member, s: SessionState, previous: st
   };
 }
 
-export function view(c: CaseData, m: Member, s: Session, previous: string | null) {
+export async function view(c: CaseData, m: Member, s: Session, previous: string | null) {
+  const lang = asLang(s.state.profile.lang);
+  const raw = s.state.done ? null : packet(c, s.state);
   return {
-    session: { id: s.id, done: s.state.done, plan: s.state.plan, phase: s.state.plan[s.state.phase] },
+    session: { id: s.id, done: s.state.done, plan: s.state.plan, phase: s.state.plan[s.state.phase], lang },
     persona: personaFor(c, m, s.state, previous),
-    packet: s.state.done ? null : packet(c, s.state),
+    /** What the screen shows and the scripted guide says, in the family's language. */
+    packet: raw ? await localize(raw, lang) : null,
+    /** The same phase as a brief for the live agent. */
+    agentBrief: raw ? agentBrief(raw, lang) : null,
   };
 }
 
@@ -52,11 +60,24 @@ async function previousSummary(o: Owner) {
   return done[0] ?? null;
 }
 
-export async function openSession(c: CaseData, m: Member, o: Owner) {
+export async function openSession(c: CaseData, m: Member, o: Owner, lang?: Lang) {
   const prev = await previousSummary(o);
   const state = startState(c, m, prev?.state.profile);
+  if (lang) state.profile.lang = lang;
   const s = await store.createSession(o, state);
+  warm(c, state);
   return view(c, m, s, prev?.summary ?? null);
+}
+
+/**
+ * Translate every phase of this plan in the background, so that when the live agent finishes a
+ * phase the next one is already cached and it does not wait. Translations persist on disk.
+ */
+function warm(c: CaseData, state: SessionState) {
+  const lang = asLang(state.profile.lang);
+  if (lang === "en") return;
+  const all = state.plan.flatMap((_, i) => [0, 1].map((depth) => packet(c, { ...state, phase: i, depth })));
+  Promise.all(all.map((p) => localize(p, lang))).catch(() => {});
 }
 
 export async function loadSession(c: CaseData, m: Member, o: Owner, id: string) {
@@ -76,6 +97,8 @@ export async function phaseDone(c: CaseData, m: Member, o: Owner, id: string, in
   if (!s) throw new ApiError(404, "not_found", "No such conversation for this person.");
   if (s.state.done) throw new ApiError(409, "finished", "This conversation has already ended. Open a new one.");
   const { state, accepted } = advance(c, s.state, input);
+  // Their worry may have changed the plan: get its phases ready now.
+  if (s.state.plan[s.state.phase] === "discovery") warm(c, state);
 
   let goal = null;
   if (accepted !== null) {
@@ -85,7 +108,7 @@ export async function phaseDone(c: CaseData, m: Member, o: Owner, id: string, in
     goal = existing ?? (await store.createGoal(o, { title: step.title, detail: step.detail, due: accepted ? nextSaturday() : null }));
   }
   const saved = await store.saveSession(o, id, state, state.done ? summarise(c, state, accepted) : undefined);
-  return { ...view(c, m, saved!, null), goal };
+  return { ...(await view(c, m, saved!, null)), goal };
 }
 
 export async function nextStep(c: CaseData, o: Owner) {

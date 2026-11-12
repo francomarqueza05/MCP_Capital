@@ -14,6 +14,7 @@ export type Level = "new" | "basics" | "expert";
 export type Profile = {
   memberId: string;
   name: string;
+  lang: "es" | "en";
   level: Level;
   worry: string | null;
   worryTopic: TopicId | null;
@@ -296,10 +297,17 @@ export function packet(c: CaseData, s: SessionState): Packet {
 
 // ---------- Moving through the plan ----------
 
-const LEVELS: Record<string, Level> = { "keep it simple": "new", "i know the basics": "basics", "give me the detail": "expert" };
+const LEVELS: Record<string, Level> = {
+  "keep it simple": "new",
+  "i know the basics": "basics",
+  "give me the detail": "expert",
+  "explícamelo fácil": "new",
+  "sé lo básico": "basics",
+  "dame el detalle": "expert",
+};
 
 export function startState(c: CaseData, member: Member, prior?: Partial<Profile>): SessionState {
-  const profile: Profile = { memberId: member.id, name: member.name, level: prior?.level ?? "basics", worry: prior?.worry ?? null, worryTopic: prior?.worryTopic ?? null };
+  const profile: Profile = { memberId: member.id, name: member.name, lang: prior?.lang ?? "es", level: prior?.level ?? "basics", worry: prior?.worry ?? null, worryTopic: prior?.worryTopic ?? null };
   return { phase: 0, depth: 0, turns: 0, plan: buildPlan(c, profile), profile, log: [], done: false };
 }
 
@@ -315,7 +323,7 @@ export function advance(c: CaseData, prev: SessionState, input: DoneInput): Adva
     s.profile.worry = a.worry.slice(0, 300);
     s.profile.worryTopic = classify(a.worry);
   }
-  if (a.level) s.profile.level = LEVELS[a.level.toLowerCase()] ?? (/simple|new|basic/i.test(a.level) ? "new" : /detail|expert/i.test(a.level) ? "expert" : s.profile.level);
+  if (a.level) s.profile.level = LEVELS[a.level.toLowerCase()] ?? (/simple|new|f[aá]cil|sencill|nuevo/i.test(a.level) ? "new" : /detail|expert|detalle/i.test(a.level) ? "expert" : /basic|b[aá]sico/i.test(a.level) ? "basics" : s.profile.level);
 
   s.log.push({ phase: id, understood: input.understood, emotion: input.emotion?.slice(0, 40), wantsMore: input.wantsMore, at: new Date().toISOString() });
   s.turns++;
