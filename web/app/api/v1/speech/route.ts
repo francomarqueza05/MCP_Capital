@@ -7,7 +7,7 @@ import { ApiError, body, handle, member } from "@/lib/api/http";
 // its text, so a line is paid for once however many times it is said. Members only, so the
 // team's small ElevenLabs allowance cannot be spent by strangers.
 const MODEL = process.env.VOICE_MODEL_LIVE ?? "eleven-flash-v2.5";
-const VOICE = process.env.VOICE_ID ?? "dNjJKg63Fr5AXwIdkATa"; // Castilian Spanish
+const VOICE = process.env.VOICE_ID ?? "eZxqQzb5CuYo3Kl6EXfZ"; // Sofia, Castilian Spanish
 const dir = join(process.cwd(), ".cache", "voice");
 
 const audio = (buf: Buffer) =>

@@ -4,7 +4,7 @@
 // so the prompt and tools live here in git, not only in the ElevenLabs dashboard.
 const KEY = process.env.ELEVENLABS_API_KEY;
 const AGENT = process.env.ELEVENLABS_AGENT_ID;
-const VOICE = process.env.VOICE_ID ?? "dNjJKg63Fr5AXwIdkATa"; // Cristina: warm, neutral Castilian Spanish
+const VOICE = process.env.VOICE_ID ?? "eZxqQzb5CuYo3Kl6EXfZ"; // Sofia: soft, natural Castilian Spanish
 // eleven_v3_conversational: the most natural agent voice (breaths, pauses, intonation).
 // eleven_flash_v2_5 answers faster but sounds flatter.
 const TTS_MODEL = process.env.TTS_MODEL ?? "eleven_v3_conversational";
