@@ -103,6 +103,7 @@ function Live({ slug }: { slug: string }) {
   const [yearly, setYearly] = useState<YearPoint[] | null>(null);
   const [line, setLine] = useState("");
   const [progress, setProgress] = useState(1);
+  const [turn, setTurn] = useState(0);
   const [captionsOn, setCaptionsOn] = useState(true);
   const [busy, setBusy] = useState(false);
   const [cut, setCut] = useState(false);
@@ -194,6 +195,7 @@ function Live({ slug }: { slug: string }) {
         segs.current = [];
         said.current = "";
         turnOver.current = false;
+        setTurn((n) => n + 1);
       }
       aligned.current = true;
       // The browser plays a chunk a little after the player reports it: light letters with that delay.
@@ -216,8 +218,11 @@ function Live({ slug }: { slug: string }) {
       setLine(m.message);
     },
     onInterruption: () => {
+      // Drop what was being said, so an interrupted sentence never comes back on screen.
       turnOver.current = true;
       segs.current = [];
+      said.current = "";
+      setLine("");
       setCut(true);
       setTimeout(() => setCut(false), 700);
     },
@@ -465,7 +470,7 @@ function Live({ slug }: { slug: string }) {
             <AnimatePresence initial={false}>
               {!chips && captionsOn && line && (
                 <motion.div key="caption" className="foot-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-                  <Caption text={line} progress={progress} />
+                  <Caption text={line} progress={progress} turn={turn} />
                 </motion.div>
               )}
             {chips && (

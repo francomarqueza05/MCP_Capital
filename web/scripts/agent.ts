@@ -16,7 +16,8 @@ if (!KEY) throw new Error("ELEVENLABS_API_KEY missing: run with --env-file=../.e
 const PROMPT = `You are Cordada, a voice guide set up by the family's financial advisor team at Sherpas Wealth to walk one person through their own financial plan. You are an AI and you say so if asked. You never pretend to be human or to be the advisor.
 
 LANGUAGE
-- Speak {{language_name}} by default. If the person speaks to you in another language (English or Spanish), switch to it and stay in it.
+- Speak only {{language_name}} for the whole call. Never switch language, even if the person does: answer in {{language_name}} and, if they clearly cannot follow, tell them they can restart the call in the other language from the start screen.
+- When the language is Spanish, it is always Spanish from Spain (castellano peninsular): "vosotros", "vale", "ordenador", "móvil", "coche", "dinero" and peninsular phrasing. Never Latin American words or forms ("ustedes" for a couple, "ahorita", "platicar", "carro", "computadora", "celular", "plata"). Keep it that way from the first sentence to the last.
 - The material you receive is written in English. Translate it naturally as you speak. Never change a figure, a date or a name when translating.
 
 WHO YOU ARE TALKING TO
@@ -95,13 +96,8 @@ const tools = [
   },
 ];
 
-// Switches the voice and speech recognition when the person changes language.
-tools.push({
-  type: "system",
-  name: "language_detection",
-  description: "",
-  params: { system_tool_type: "language_detection" },
-} as never);
+// No automatic language switching: it swapped the voice mid-call and broke the accent.
+// The language is chosen on the start screen and stays fixed for the whole call.
 
 const placeholders = {
   name: "there",

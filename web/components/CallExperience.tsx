@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Packet, Visual } from "@/lib/engine/engine";
 import type { YearPoint } from "@/lib/cases/load";
 import { downloadIcs, nextSaturday } from "@/lib/calendar";
+import { current } from "@/lib/captions";
 import { Orb, type VoiceState } from "./Orb";
 import { Ridge } from "./Ridge";
 
@@ -46,41 +47,27 @@ export function Count({ to, seconds = 1.4 }: { to: number; seconds?: number }) {
   return <span ref={ref}>{usd(0)}</span>;
 }
 
-/** The sentence being spoken, lit word by word as the audio reaches it. */
-export function Caption({ text, progress }: { text: string; progress: number }) {
-  const parts = useMemo(() => {
-    // The last sentence may still be arriving without its full stop: keep it too.
-    const sentences = text.match(/[^.?!]+(?:[.?!]+["'»]?\s*|$)/g) ?? [text];
-    let at = 0;
-    return sentences.map((s) => {
-      const start = at;
-      at += s.length;
-      return { s: s.trim(), start, end: at };
-    });
-  }, [text]);
-  const pos = progress * text.length;
-  const cur = parts.find((p) => pos < p.end) ?? parts[parts.length - 1];
-  // A word lights up the moment the voice reaches its first letter.
-  const words = cur.s.split(" ");
-  let at = text.indexOf(cur.s, cur.start);
-  const said = words.filter((w) => {
-    const first = at;
-    at += w.length + 1;
-    return first < pos;
-  }).length;
+/**
+ * The phrase being spoken, lit word by word as the voice reaches it. A phrase keeps the same
+ * key while more of the reply streams in, so it never fades out and back in; `turn` changes
+ * the key when a new reply starts.
+ */
+export function Caption({ text, progress, turn = 0 }: { text: string; progress: number; turn?: number }) {
+  const now = useMemo(() => current(text, progress * text.length), [text, progress]);
+  if (!now) return null;
   return (
     <div className="caption" aria-live="polite">
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" initial={false}>
         <motion.p
-          key={cur.start + text}
+          key={`${turn}:${now.phrase.start}`}
           initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
           exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
-          transition={{ duration: 0.28 }}
+          transition={{ duration: 0.22 }}
         >
-          {words.map((w, k) => (
-            <span key={k} className={k < said ? "is-said" : ""}>
-              {w}{" "}
+          {now.words.map((w, k) => (
+            <span key={k} className={k < now.said ? "is-said" : ""}>
+              {w.w}{" "}
             </span>
           ))}
         </motion.p>
