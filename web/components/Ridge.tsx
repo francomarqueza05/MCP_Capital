@@ -1,13 +1,8 @@
 "use client";
 
 import { animate, motion, useMotionValue, useTransform } from "motion/react";
-import { useEffect, useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { RidgeFlag, YearPoint } from "@/mock/data";
-
-const W = 640;
-const H = 360;
-const PAD = { l: 8, r: 8, t: 44, b: 44 };
-const IW = W - PAD.l - PAD.r;
 
 const money = (v: number) =>
   v < 500 ? "$0" : Math.abs(v) >= 1_000_000 ? `$${(v / 1_000_000).toFixed(2).replace(/\.?0+$/, "")}M` : `$${Math.round(v / 1000)}K`;
@@ -28,6 +23,7 @@ const icons: Record<string, string> = {
 
 // The plan drawn live: the line advances while the guide talks about those years,
 // with a glowing head that reads out the age and the amount it is passing through.
+// The drawing is sized to its box in real pixels, so labels stay readable on a phone.
 export function Ridge({
   yearly,
   toAge,
@@ -40,6 +36,25 @@ export function Ridge({
   seconds: number;
 }) {
   const id = useId();
+  const box = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(640);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => {
+      const w = Math.round(e.contentRect.width);
+      if (w > 0) setW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const narrow = W < 480;
+  const H = Math.round(Math.min(360, Math.max(250, W * 0.56)));
+  const PAD = { l: 8, r: 8, t: 44, b: narrow ? 64 : 44 };
+  const IW = W - PAD.l - PAD.r;
+
   const g = useMemo(() => {
     const a0 = yearly[0].age;
     const a1 = yearly[yearly.length - 1].age;
@@ -59,7 +74,8 @@ export function Ridge({
       return { age: p.age + k * (n.age - p.age), v: p.investable + k * (n.investable - p.investable) };
     };
     return { a0, a1, max, x, y, line, area, sample };
-  }, [yearly]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [yearly, W, H, narrow]);
 
   const reach = Math.min(Math.max(toAge, g.a0), g.a1);
   const target = (reach - g.a0) / (g.a1 - g.a0);
@@ -82,7 +98,7 @@ export function Ridge({
 
   return (
     <figure className="ridge">
-      <div className="ridge-plot">
+      <div className="ridge-plot" ref={box}>
         <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Your savings and investments by age">
           <defs>
             <linearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1">
@@ -114,7 +130,7 @@ export function Ridge({
             <path d={g.line} className="ridge-line" stroke={`url(#${id}s)`} />
           </g>
 
-          {flags.map((flag) => {
+          {flags.map((flag, i) => {
             const p = yearly.find((q) => q.age >= flag.age) ?? yearly[yearly.length - 1];
             const px = g.x(p.age);
             return (
@@ -129,7 +145,8 @@ export function Ridge({
                 <line x1={px} x2={px} y1={g.y(Math.max(p.investable, 0))} y2={g.y(0)} />
                 <circle cx={px} cy={g.y(0)} r="15" />
                 <path d={icons[flag.icon ?? "home"]} transform={`translate(${px - 12} ${g.y(0) - 12})`} />
-                <text x={px} y={H - 8} textAnchor={px > W * 0.8 ? "end" : px < W * 0.15 ? "start" : "middle"}>
+                {/* On a narrow screen neighbouring labels take turns on two rows. */}
+                <text x={px} y={H - 8 - (narrow && i % 2 === 0 ? 20 : 0)} textAnchor={px > W * 0.8 ? "end" : px < W * 0.15 ? "start" : "middle"}>
                   {flag.label}
                 </text>
               </motion.g>

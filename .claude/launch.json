@@ -4,7 +4,7 @@
     {
       "name": "cordada-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "D:/PROYECTOS/MCP_Capital/web", "run", "dev"],
+      "runtimeArgs": ["--prefix", "web", "run", "dev"],
       "port": 3000
     }
   ]
