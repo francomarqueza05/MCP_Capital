@@ -8,8 +8,31 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Packet, Visual } from "@/lib/engine/engine";
 import type { YearPoint } from "@/lib/cases/load";
 import { downloadIcs, nextSaturday } from "@/lib/calendar";
-import { CC, CLOSE, Caption, Icon, MIC, MIC_OFF, Stage, spring, swap } from "./CallExperience";
+import { CC, CLOSE, Icon, MIC, MIC_OFF, Stage, spring, swap } from "./CallExperience";
 import { Orb, type VoiceState } from "./Orb";
+import { SpeechClock, captionTail } from "@/lib/speechClock";
+
+/**
+ * Live caption: the sentence being said, built only from words already heard. Within a sentence
+ * words are only added; a new sentence (or page of a long one) replaces the line with a short
+ * fade-in. Nothing is ever rewritten in place.
+ */
+function LiveCaption({ heard, turn }: { heard: string; turn: number }) {
+  const t = captionTail(heard);
+  if (!t.words.length) return null;
+  return (
+    <div className="caption" aria-live="polite">
+      <p key={`${turn}:${t.key}`} className="caption-line">
+        {t.cutBefore && <span className="is-said">… </span>}
+        {t.words.map((w, k) => (
+          <span key={k} className="is-said">
+            {w}{" "}
+          </span>
+        ))}
+      </p>
+    </div>
+  );
+}
 import { sections, type Block } from "./blocks/registry";
 import type { Johnson, PersonId } from "@/lib/johnson";
 import "./blocks/blocks.css";
@@ -137,7 +160,6 @@ function Live({ slug }: { slug: string }) {
   const packetRef = useRef<LivePacket | null>(null);
   const [yearly, setYearly] = useState<YearPoint[] | null>(null);
   const [line, setLine] = useState("");
-  const [progress, setProgress] = useState(1);
   const [turn, setTurn] = useState(0);
   const [captionsOn, setCaptionsOn] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -150,12 +172,8 @@ function Live({ slug }: { slug: string }) {
   const level = useRef(0);
   const sessionId = useRef<string | null>(null);
   const finished = useRef(false);
-  const lineStart = useRef(0);
-  const lineLen = useRef(1);
-  // Exact caption timing: each audio chunk's characters with their start times, stamped with
-  // the moment the chunk started playing. The caption lights each character as it is voiced.
-  const segs = useRef<{ t0: number; starts: number[] }[]>([]);
-  const said = useRef("");
+  // Captions: our own playback clock over the voice's audio chunks (see lib/speechClock).
+  const clock = useRef(new SpeechClock(OUTPUT_LAG_MS));
   const aligned = useRef(false);
   const turnOver = useRef(true);
 
@@ -232,20 +250,20 @@ function Live({ slug }: { slug: string }) {
         }
       },
     },
-    onAudioAlignmentPlayback: ({ alignment }) => {
+    // Every audio chunk, as it arrives: what it says and when each letter sounds inside it.
+    onAudioAlignment: (alignment) => {
       if (!alignment?.chars?.length) return;
       if (turnOver.current) {
-        segs.current = [];
-        said.current = "";
+        clock.current.reset();
         turnOver.current = false;
         setTurn((n) => n + 1);
+        setLine("");
       }
       aligned.current = true;
-      // The browser plays a chunk a little after the player reports it: light letters with that delay.
-      segs.current.push({ t0: performance.now() + OUTPUT_LAG_MS, starts: alignment.char_start_times_ms });
-      said.current += alignment.chars.join("");
-      setLine(said.current);
+      clock.current.receive(alignment, performance.now());
     },
+    // When the player really starts a chunk (WebSocket only), correct our clock.
+    onAudioAlignmentPlayback: () => clock.current.started(performance.now()),
     onMessage: (m) => {
       // A new turn starts when the person speaks. Not on "listening": the player reports that
       // too in the short gaps between audio chunks of the same reply, which used to reset the caption.
@@ -253,18 +271,14 @@ function Live({ slug }: { slug: string }) {
         turnOver.current = true;
         return;
       }
-      // Without timing data (or before it arrives) fall back to the full reply at speaking pace.
+      // Without timing data, show the whole reply once it is known.
       if (aligned.current) return;
-      lineStart.current = performance.now();
-      lineLen.current = m.message.length;
-      setProgress(0);
       setLine(m.message);
     },
     onInterruption: () => {
       // Drop what was being said, so an interrupted sentence never comes back on screen.
       turnOver.current = true;
-      segs.current = [];
-      said.current = "";
+      clock.current.reset();
       setLine("");
       setCut(true);
       setTimeout(() => setCut(false), 700);
@@ -312,19 +326,10 @@ function Live({ slug }: { slug: string }) {
       const lv = 1 - Math.exp(-v * 4.5);
       level.current = lv;
       root.current?.style.setProperty("--lv", lv.toFixed(3));
-      // Light the caption at speaking pace while the agent talks.
-      if (s === "speaking" && aligned.current && segs.current.length) {
-        const now = performance.now();
-        let played = 0;
-        for (const seg of segs.current) for (const st of seg.starts) if (seg.t0 + st <= now) played++;
-        const total = Math.max(1, said.current.length);
-        setProgress((p) => {
-          const next = Math.min(1, played / total);
-          return Math.abs(next - p) < 0.002 ? p : next;
-        });
-      } else if (s === "speaking") {
-        // About 14 characters a second is the pace of the voice.
-        setProgress((p) => (p >= 1 ? p : Math.min(1, ((performance.now() - lineStart.current) / 1000) * 14 / Math.max(1, lineLen.current))));
+      // The caption is what has been heard so far: it only ever grows within a reply.
+      if (aligned.current && !clock.current.empty) {
+        const heard = clock.current.heard(performance.now());
+        setLine((prev) => (prev === heard ? prev : heard));
       }
       raf = requestAnimationFrame(tick);
     };
@@ -350,7 +355,7 @@ function Live({ slug }: { slug: string }) {
     finished.current = false;
     turnOver.current = true;
     aligned.current = false;
-    segs.current = [];
+    clock.current.reset();
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((x) => x.stop()));
     } catch {
@@ -539,7 +544,7 @@ function Live({ slug }: { slug: string }) {
             <AnimatePresence initial={false}>
               {!chips && captionsOn && line && (
                 <motion.div key="caption" className="foot-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-                  <Caption text={line} progress={progress} turn={turn} />
+                  <LiveCaption heard={line} turn={turn} />
                 </motion.div>
               )}
             {chips && (
