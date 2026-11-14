@@ -298,13 +298,13 @@ function Live({ slug }: { slug: string }) {
         setLine("");
       }
       aligned.current = true;
-      trace({ k: "recv", text: alignment.chars.join(""), ms: Math.round(Math.max(0, ...alignment.char_start_times_ms)) });
+      trace({ k: "recv", text: alignment.chars.join(""), starts: alignment.char_start_times_ms.map(Math.round) });
       clock.current.receive(alignment, performance.now());
     },
     // When the player really starts a chunk (WebSocket only), correct our clock.
-    onAudioAlignmentPlayback: () => {
-      trace({ k: "play" });
-      clock.current.started(performance.now());
+    onAudioAlignmentPlayback: ({ alignment }) => {
+      trace({ k: "play", text: alignment?.chars?.join("") ?? null });
+      clock.current.started(performance.now(), alignment);
     },
     onMessage: (m) => {
       // A new turn starts when the person speaks. Not on "listening": the player reports that
@@ -383,7 +383,7 @@ function Live({ slug }: { slug: string }) {
       }
       // The caption is what has been heard so far: it only ever grows within a reply.
       if (aligned.current && !clock.current.empty) {
-        const heard = clock.current.heard(performance.now());
+        const heard = clock.current.visible(performance.now());
         setLine((prev) => {
           if (prev !== heard) trace({ k: "heard", n: heard.length, tail: heard.slice(-24), vol: Math.round(out * 1000) / 1000 });
           return prev === heard ? prev : heard;

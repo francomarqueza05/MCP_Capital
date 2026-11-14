@@ -8,13 +8,14 @@
 
 export type Alignment = { chars: string[]; char_start_times_ms: number[]; char_durations_ms: number[] };
 
-type Chunk = { t0: number; len: number; chars: string[]; starts: number[] };
+type Chunk = { t0: number; len: number; chars: string[]; starts: number[]; text: string; started: boolean };
 
 export class SpeechClock {
   private chunks: Chunk[] = [];
   private playhead = 0;
-  private playIndex = 0;
   private shown = "";
+  /** Once the player reports chunk starts, only chunks it has started count as heard. */
+  private reports = false;
 
   /** @param lagMs delay between the player starting a chunk and the sound reaching the ear */
   constructor(private lagMs = 90) {}
@@ -23,7 +24,6 @@ export class SpeechClock {
   reset() {
     this.chunks = [];
     this.playhead = 0;
-    this.playIndex = 0;
     this.shown = "";
   }
 
@@ -32,20 +32,25 @@ export class SpeechClock {
     if (!a?.chars?.length) return;
     const t0 = Math.max(now + this.lagMs, this.playhead);
     const length = Math.max(0, ...a.char_start_times_ms.map((s, i) => s + (a.char_durations_ms[i] ?? 0)));
-    this.chunks.push({ t0, len: length, chars: a.chars, starts: a.char_start_times_ms });
+    this.chunks.push({ t0, len: length, chars: a.chars, starts: a.char_start_times_ms, text: a.chars.join(""), started: false });
     this.playhead = t0 + length;
   }
 
   /**
-   * The player reports that the next chunk really started now (WebSocket only). Shift that chunk
-   * and the ones after it, so the estimate never drifts.
+   * The player reports that a chunk really started now (WebSocket only). It is matched to our
+   * chunk by its text, not by position: the stream can carry audio without text, so counting
+   * reports would pair them with the wrong chunks. That chunk and the ones after it are shifted.
    */
-  started(now: number) {
-    const c = this.chunks[this.playIndex++];
-    if (!c) return;
-    const shift = now + this.lagMs - c.t0;
+  started(now: number, a?: Alignment | null) {
+    if (!a?.chars?.length) return;
+    const text = a.chars.join("");
+    const k = this.chunks.findIndex((c) => !c.started && c.text === text);
+    if (k < 0) return;
+    this.reports = true;
+    this.chunks[k].started = true;
+    const shift = now + this.lagMs - this.chunks[k].t0;
     if (Math.abs(shift) < 15) return;
-    for (let i = this.playIndex - 1; i < this.chunks.length; i++) this.chunks[i].t0 += shift;
+    for (let i = k; i < this.chunks.length; i++) this.chunks[i].t0 += shift;
     this.playhead += shift;
   }
 
@@ -53,8 +58,12 @@ export class SpeechClock {
    * The speakers just went from silence to sound. Whatever the clock guessed, the chunk that
    * should be playing (or the next one) really starts now: shift it and everything after it.
    * Catches a player that starts late, and pauses between chunks when the network is slow.
+   * Only used when the player does not report chunk starts (WebRTC).
    */
   resync(now: number) {
+    // The player's own reports are exact; silence inside a reply is often just a natural pause
+    // between sentences, so resyncing on it would push the caption late.
+    if (this.reports) return;
     const k = this.chunks.findIndex((c) => c.t0 + c.len > now - 200);
     if (k < 0) return;
     const shift = now + this.lagMs - this.chunks[k].t0;
@@ -67,6 +76,8 @@ export class SpeechClock {
   heard(now: number) {
     let out = "";
     scan: for (const c of this.chunks) {
+      // With reports, a chunk the player has not started yet has not been heard, whatever we guessed.
+      if (this.reports && !c.started) break;
       for (let i = 0; i < c.chars.length; i++) {
         if (c.t0 + c.starts[i] > now) break scan;
         out += c.chars[i];
@@ -75,6 +86,29 @@ export class SpeechClock {
     // A resync can move the clock back; words already on screen never disappear.
     if (out.length > this.shown.length) this.shown = out;
     return this.shown;
+  }
+
+  /** All the text received for this reply so far, heard or not. Arrives well ahead of the sound. */
+  get received() {
+    return this.chunks.map((c) => c.chars.join("")).join("");
+  }
+
+  /**
+   * What the caption may show: every word whose first letter has been heard, written out in full
+   * from the text already received. A word appears the moment it starts sounding, not after it
+   * ends. If a chunk cut the word, what has arrived shows and the rest is added when it comes.
+   */
+  visible(now: number) {
+    const heard = this.heard(now);
+    const all = this.received;
+    if (!heard) return "";
+    // Between words: the next one has not started yet.
+    if (/\s$/.test(heard)) return heard.trimEnd();
+    const rest = all.slice(heard.length);
+    const m = rest.match(/^\S*/);
+    // The word being spoken, as far as it has been received. If a chunk cut it, it grows into the
+    // whole word when the rest arrives; it is never held back (that froze the caption for seconds).
+    return heard + (m ? m[0] : "");
   }
 
   get empty() {
@@ -90,9 +124,8 @@ export class SpeechClock {
  * once it is complete (a chunk can end in the middle of a word).
  */
 export function captionTail(heard: string, maxWords = 16) {
-  const text = heard.replace(/\s+/g, " ");
-  const lastBreak = Math.max(text.lastIndexOf(" "), 0);
-  const settled = /[\s.,;:?!…]$/.test(text) ? text : text.slice(0, lastBreak);
+  // `heard` holds whole words only (see SpeechClock.visible).
+  const settled = heard.replace(/\s+/g, " ").trimStart() + " ";
   const ends = [...settled.matchAll(/[.?!…]+["'»)]*\s/g)].map((m) => m.index! + m[0].length);
   const start = ends.length ? ends[ends.length - 1] : 0;
   const sentenceStart = settled.slice(start).trim() ? start : ends.length > 1 ? ends[ends.length - 2] : 0;

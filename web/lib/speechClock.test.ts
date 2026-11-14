@@ -32,7 +32,7 @@ function replay() {
   for (let now = 0; now <= 20000; now += 16) {
     while (next < CAPTURED.length && CAPTURED[next][0] <= now) clock.receive(align(CAPTURED[next++][1]), now);
     const heard = clock.heard(now);
-    const t = captionTail(heard);
+    const t = captionTail(clock.visible(now));
     frames.push({ heard, caption: t.words.join(" "), key: t.key });
   }
   return frames;
@@ -54,23 +54,44 @@ test("within a sentence the caption only adds words; a new sentence replaces it 
   }
 });
 
-test("a word split across chunks never shows half", () => {
-  const shown = new Set(replay().flatMap((f) => f.caption.split(" ")));
-  assert.ok(!shown.has("pi"), "half word shown");
-  assert.ok(shown.has("piensas"));
+test("a word split across chunks only grows into the whole word", () => {
+  const frames = replay();
+  const final = new Set(FULL.split(/\s+/).map((w) => w.replace(/[^\p{L}]/gu, "")));
+  for (const f of frames)
+    for (const w of f.caption.split(" ").filter(Boolean)) {
+      const bare = w.replace(/[^\p{L}]/gu, "");
+      assert.ok([...final].some((x) => x.startsWith(bare)), `"${w}" is not the start of a real word`);
+    }
+  assert.ok(frames.at(-1)!.caption.includes("cabeza?"));
 });
 
 test("the caption keeps a finished sentence until the next one is spoken", () => {
   const t = captionTail("Hola Michael. Soy Cordada.");
   assert.equal(t.words.join(" "), "Soy Cordada.");
-  const n = captionTail("Hola Michael. Soy Cordada. Ant");
-  assert.equal(n.words.join(" "), "Soy Cordada.", "the next sentence starts only with a full word");
+  const n = captionTail("Hola Michael. Soy Cordada. Antes");
+  assert.equal(n.words.join(" "), "Antes");
+});
+
+test("a word appears, complete, the moment its first letter sounds", () => {
+  const clock = new SpeechClock(0);
+  clock.receive(align("Soy una inteligencia artificial."), 0); // 65 ms per character
+  // "inteligencia" starts at character 8 = 520 ms.
+  assert.equal(captionTail(clock.visible(500)).words.join(" "), "Soy una");
+  assert.equal(captionTail(clock.visible(530)).words.join(" "), "Soy una inteligencia");
+});
+
+test("a word split across chunks shows what has arrived and completes when the rest comes", () => {
+  const clock = new SpeechClock(0);
+  clock.receive(align("cuando quier"), 0);
+  assert.equal(clock.visible(500), "cuando quier");
+  clock.receive(align("as."), 600);
+  assert.equal(clock.visible(500), "cuando quieras.");
 });
 
 test("the player's real start times correct the estimate", () => {
   const clock = new SpeechClock(0);
   clock.receive(align("Hola Michael."), 0);
-  clock.started(500); // it really started 500 ms later
+  clock.started(500, align("Hola Michael.")); // it really started 500 ms later
   assert.equal(clock.heard(400), "");
   assert.ok(clock.heard(700).startsWith("Hola"));
 });
@@ -109,4 +130,34 @@ test("a resync that moves the clock back never removes words already shown", () 
   const before = clock.heard(400);
   clock.resync(450); // sound only now: the clock had run ahead
   assert.ok(clock.heard(460).startsWith(before));
+});
+
+test("a report for audio without text does not shift the wrong chunk", () => {
+  const clock = new SpeechClock(0);
+  clock.receive(align("Hola."), 0);
+  clock.receive(align(" Soy Cordada."), 0);
+  clock.started(0, align("Hola."));
+  clock.started(200, null); // audio with no text
+  clock.started(325, align(" Soy Cordada.")); // on time
+  assert.ok(clock.heard(330).startsWith("Hola. "), clock.heard(330));
+});
+
+test("once the player reports starts, a chunk it has not started is not shown, however late", () => {
+  const clock = new SpeechClock(0);
+  clock.receive(align("Hola."), 0);
+  clock.receive(align(" Soy Cordada."), 0);
+  clock.started(0, align("Hola."));
+  // The clock would guess the second chunk at 325 ms, but the player starts it at 900 ms.
+  assert.equal(clock.heard(600), "Hola.");
+  clock.started(900, align(" Soy Cordada."));
+  assert.ok(clock.heard(1000).startsWith("Hola. S"));
+});
+
+test("a natural pause between sentences does not delay the caption when the player reports starts", () => {
+  const clock = new SpeechClock(0);
+  clock.receive(align("contigo. Soy una"), 0);
+  clock.started(0, align("contigo. Soy una"));
+  // A pause after "contigo." and then sound again: not a late start.
+  clock.resync(700);
+  assert.ok(clock.heard(700).includes("So"), clock.heard(700));
 });
