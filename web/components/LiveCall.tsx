@@ -10,6 +10,33 @@ import type { YearPoint } from "@/lib/cases/load";
 import { downloadIcs, nextSaturday } from "@/lib/calendar";
 import { CC, CLOSE, Caption, Icon, MIC, MIC_OFF, Stage, spring, swap } from "./CallExperience";
 import { Orb, type VoiceState } from "./Orb";
+import { sections, type Block } from "./blocks/registry";
+import type { Johnson, PersonId } from "@/lib/johnson";
+import "./blocks/blocks.css";
+
+/** One block the director chose for this phase (see the API's Step schema). */
+type Step = { block: string; name: string; depth: "plain" | "detailed"; level: number; say: string | null; who: string };
+type LivePacket = Packet & { steps?: Step[] };
+
+const BLOCKS = new Map<string, Block>(sections.flatMap((s) => s.blocks).map((b) => [b.id, b]));
+
+/** The block on screen, drawn with the family's plan from the API. */
+function LiveBlock({ step, plan, index, of }: { step: Step; plan: Johnson; index: number; of: number }) {
+  const block = BLOCKS.get(step.block);
+  if (!block) return null;
+  return (
+    <div className="live-block">
+      <div className="frame-visual">{block.render({ data: plan, who: step.who as PersonId, depth: step.depth })}</div>
+      {of > 1 && (
+        <ol className="live-steps" aria-label={`${index + 1} / ${of}`}>
+          {Array.from({ length: of }, (_, i) => (
+            <li key={i} className={i === index ? "is-now" : i < index ? "is-done" : ""} />
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
 
 type Lang = "es" | "en";
 type Goal = { id: string; title: string; detail: string; due: string | null };
@@ -105,6 +132,9 @@ function Live({ slug }: { slug: string }) {
   const [error, setError] = useState("");
   const [packet, setPacket] = useState<Packet | null>(null);
   const [visual, setVisual] = useState<Visual | null>(null);
+  const [plan, setPlan] = useState<Johnson | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+  const packetRef = useRef<LivePacket | null>(null);
   const [yearly, setYearly] = useState<YearPoint[] | null>(null);
   const [line, setLine] = useState("");
   const [progress, setProgress] = useState(1);
@@ -141,8 +171,11 @@ function Live({ slug }: { slug: string }) {
     [token],
   );
 
-  const show = useCallback((p: Packet | null) => {
+  const show = useCallback((p: LivePacket | null) => {
     setPacket(p);
+    packetRef.current = p;
+    // The phase opens on its first block; the agent moves on with show_block.
+    setActive(p?.steps?.[0]?.block ?? null);
     if (!p) return;
     if (p.visual.kind !== "none") setVisual(p.visual);
     if (p.visual.kind === "step") setStep({ title: p.visual.title, detail: p.visual.detail });
@@ -150,6 +183,11 @@ function Live({ slug }: { slug: string }) {
 
   const conversation = useConversation({
     clientTools: {
+      // The agent says which block it is about to talk about: put it on screen.
+      show_block: (p: Record<string, unknown>) => {
+        const id = String(p.block ?? "");
+        if (packetRef.current?.steps?.some((x) => x.block === id)) setActive(id);
+      },
       // The agent says the phase is over; the engine decides what comes next.
       phase_done: async (p: Record<string, unknown>) => {
         if (!sessionId.current) return "No conversation is open.";
@@ -325,6 +363,8 @@ function Live({ slug }: { slug: string }) {
         api<View>("/sessions", { method: "POST", body: JSON.stringify({ lang }) }),
         api<{ yearly: YearPoint[] }>("/visuals/ridge"),
         api<{ signedUrl: string }>("/voice/agent-session", { method: "POST", body: "{}" }),
+        // Every figure the blocks draw. Without it, the call falls back to the simple visuals.
+        api<Johnson>("/plan").then(setPlan).catch(() => setPlan(null)),
       ]);
       sessionId.current = view.session.id;
       setYearly(ridge.yearly);
@@ -468,10 +508,21 @@ function Live({ slug }: { slug: string }) {
             </motion.section>
           )}
 
-          {stage === "call" && visual && (
-            <motion.section key={`${packet?.phase}-${packet?.depth}-${visual.kind}`} className="stage" {...swap}>
-              <Stage visual={visual} yearly={yearly} seconds={9} lang={lang} />
+          {stage === "call" && plan && active && packet && (packet as LivePacket).steps?.length ? (
+            <motion.section key={`block-${active}`} className="stage" {...swap}>
+              {(() => {
+                const steps = (packet as LivePacket).steps!;
+                const i = Math.max(0, steps.findIndex((x) => x.block === active));
+                return <LiveBlock step={steps[i]} plan={plan} index={i} of={steps.length} />;
+              })()}
             </motion.section>
+          ) : (
+            stage === "call" &&
+            visual && (
+              <motion.section key={`${packet?.phase}-${packet?.depth}-${visual.kind}`} className="stage" {...swap}>
+                <Stage visual={visual} yearly={yearly} seconds={9} lang={lang} />
+              </motion.section>
+            )
           )}
         </AnimatePresence>
       </div>

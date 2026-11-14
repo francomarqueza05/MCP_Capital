@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { API_URL } from "@/lib/backend";
+import { demoHouseholds, type DemoHousehold } from "@/lib/backend";
 import { caseSlugs } from "@/mock/data";
 
-type Household = { id: string; family: string; place: string; score: number; members: { id: string; name: string; token: string }[] };
 
 // Demo launcher. In the product, each person arrives from the personal link their advisor
 // sends; here the API hands out those links for the four Sherpas cases so the jury can try them.
@@ -39,9 +38,7 @@ export default function Page() {
 
 /** The households come from the API, so they stream in after the page shell. */
 async function Families() {
-  const families: Household[] = await fetch(`${API_URL}/v1/demo/households`, { cache: "no-store" })
-    .then((r) => (r.ok ? r.json() : []))
-    .catch(() => []);
+  const families: DemoHousehold[] = await demoHouseholds();
   return (
     <ul>
       {families.map((c) => (

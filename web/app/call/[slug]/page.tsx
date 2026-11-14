@@ -1,18 +1,12 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
 import { CallExperience } from "@/components/CallExperience";
 import { LiveCall } from "@/components/LiveCall";
-import { caseIds } from "@/lib/cases/load";
 
-export function generateStaticParams() {
-  return caseIds().map((slug) => ({ slug }));
-}
-
+// The family and the person come from the personal link (?t=), checked by the API.
 async function Screen({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  if (!caseIds().includes(slug)) notFound();
-  // The live agent when it is configured; otherwise the scripted guide over the same engine.
-  const live = Boolean(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_AGENT_ID);
+  // The live agent unless it is switched off; otherwise the scripted guide over the same API.
+  const live = process.env.NEXT_PUBLIC_SCRIPTED !== "1";
   return live ? <LiveCall slug={slug} /> : <CallExperience slug={slug} />;
 }
 

@@ -1,21 +1,21 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { Library } from "@/components/blocks/Library";
-import { buildPlan, caseIds } from "@/lib/plan";
+import { API_URL, demoHouseholds } from "@/lib/backend";
+import type { Plan } from "@/lib/plan";
 
-export function generateStaticParams() {
-  return caseIds.map((slug) => ({ slug }));
-}
-
-// Each family's plan is read on the server; only the fields the blocks use reach the browser.
+// Each family's plan comes from the API (GET /v1/plan), using the demo link of its first member.
 async function Screen({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  if (!(caseIds as readonly string[]).includes(slug)) notFound();
-  const families = caseIds.map((id) => {
-    const p = buildPlan(id);
-    return { slug: id, name: p.household.family, score: p.score.value };
-  });
-  return <Library key={slug} data={buildPlan(slug)} families={families} />;
+  const households = await demoHouseholds();
+  const h = households.find((x) => x.id === slug);
+  if (!h) notFound();
+  const data: Plan | null = await fetch(`${API_URL}/v1/plan`, { headers: { authorization: `Bearer ${h.members[0].token}` }, cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  if (!data) notFound();
+  const families = households.map((x) => ({ slug: x.id, name: x.family, score: x.score }));
+  return <Library key={slug} data={data} families={families} />;
 }
 
 export default function Page({ params }: PageProps<"/blocks/[slug]">) {
