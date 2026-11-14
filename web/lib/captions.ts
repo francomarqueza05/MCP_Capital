@@ -77,3 +77,33 @@ export function current(text: string, pos: number) {
   for (let m = re.exec(p.text); m; m = re.exec(p.text)) words.push({ w: m[0], at: p.start + m.index });
   return { phrase: p, words, said: words.filter((w) => w.at < pos).length };
 }
+
+/**
+ * What the caption shows: the sentence being spoken, never cut at commas, so its boundaries do
+ * not move while more of the reply streams in. A long sentence shows a window of words that
+ * slides with the voice, so it always fits in three lines.
+ */
+export function captionWindow(text: string, pos: number, size = 18) {
+  const re = /[.?!…]+["'»)\]]*(?=\s|$)/g;
+  let from = 0;
+  let last = { start: 0, end: text.length };
+  let sentence: { start: number; end: number } | null = null;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    const end = m.index + m[0].length;
+    last = { start: from, end };
+    if (pos < end) {
+      sentence = last;
+      break;
+    }
+    from = end;
+  }
+  // Past the last full stop: the sentence still arriving, or, if nothing is left, the last one said.
+  if (!sentence) sentence = text.slice(from).trim() ? { start: from, end: text.length } : last;
+  const words: { w: string; at: number }[] = [];
+  const wr = /\S+/g;
+  const body = text.slice(sentence.start, sentence.end);
+  for (let m = wr.exec(body); m; m = wr.exec(body)) words.push({ w: m[0], at: sentence.start + m.index });
+  const said = words.filter((w) => w.at < pos).length;
+  const first = words.length <= size ? 0 : Math.max(0, Math.min(said - Math.floor(size / 2), words.length - size));
+  return { key: sentence.start, words: words.slice(first, first + size), said: said - first, cutBefore: first > 0, cutAfter: first + size < words.length };
+}

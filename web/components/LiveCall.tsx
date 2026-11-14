@@ -43,6 +43,8 @@ const T = {
     talkAgain: "Hablarlo otra vez",
     states: { idle: "", listening: "Te escucho", thinking: "Pensando", speaking: "Habla cuando quieras para interrumpir", interrupted: "Dime" },
     connecting: "Conectando",
+    phase: (n: number, of: number) => `Fase ${n} de ${of}`,
+    deeper: "a fondo",
     mute: "Silenciar micrófono",
     unmute: "Activar micrófono",
     captions: "Subtítulos",
@@ -67,6 +69,8 @@ const T = {
     talkAgain: "Talk it through again",
     states: { idle: "", listening: "Listening", thinking: "Thinking", speaking: "Just talk to interrupt", interrupted: "Go ahead" },
     connecting: "Connecting",
+    phase: (n: number, of: number) => `Step ${n} of ${of}`,
+    deeper: "in depth",
     mute: "Mute microphone",
     unmute: "Unmute microphone",
     captions: "Captions",
@@ -366,9 +370,22 @@ function Live({ slug }: { slug: string }) {
         <span className="wordmark">cordada</span>
         <AnimatePresence mode="wait">
           {stage === "call" && packet ? (
-            <motion.span key={packet.phase + packet.depth} className="pill" {...swap} transition={{ duration: 0.35 }}>
-              {packet.name}
-            </motion.span>
+            <motion.div key="track" className="phase-track" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <ol aria-hidden="true">
+                {Array.from({ length: packet.of }, (_, i) => (
+                  <li key={i} className={i < packet.index ? "is-done" : i === packet.index ? "is-now" : ""} />
+                ))}
+              </ol>
+              <p aria-live="polite">
+                <span>{t.phase(packet.index + 1, packet.of)}</span>
+                <AnimatePresence mode="wait">
+                  <motion.strong key={packet.phase + packet.depth} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
+                    {packet.name}
+                  </motion.strong>
+                </AnimatePresence>
+                {packet.depth > 0 && <em className="depth">{t.deeper}</em>}
+              </p>
+            </motion.div>
           ) : stage === "lobby" ? (
             <div className="segmented" role="group" aria-label="Idioma / Language">
               {(["es", "en"] as Lang[]).map((l) => (

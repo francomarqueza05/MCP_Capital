@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Packet, Visual } from "@/lib/engine/engine";
 import type { YearPoint } from "@/lib/cases/load";
 import { downloadIcs, nextSaturday } from "@/lib/calendar";
-import { current } from "@/lib/captions";
+import { captionWindow } from "@/lib/captions";
 import { Orb, type VoiceState } from "./Orb";
 import { Ridge } from "./Ridge";
 
@@ -49,30 +49,24 @@ export function Count({ to, seconds = 1.4 }: { to: number; seconds?: number }) {
 }
 
 /**
- * The phrase being spoken, lit word by word as the voice reaches it. A phrase keeps the same
- * key while more of the reply streams in, so it never fades out and back in; `turn` changes
- * the key when a new reply starts.
+ * The sentence being spoken, lit word by word as the voice reaches it. One sentence at a time,
+ * never overlapping: a new sentence replaces the old one with a short fade-in (no exit
+ * animation), and a long sentence slides with the voice instead of being chopped into pieces.
  */
 export function Caption({ text, progress, turn = 0 }: { text: string; progress: number; turn?: number }) {
-  const now = useMemo(() => current(text, progress * text.length), [text, progress]);
-  if (!now) return null;
+  const now = useMemo(() => captionWindow(text, progress * text.length), [text, progress]);
+  if (!now.words.length) return null;
   return (
     <div className="caption" aria-live="polite">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.p
-          key={`${turn}:${now.phrase.start}`}
-          initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
-          transition={{ duration: 0.22 }}
-        >
-          {now.words.map((w, k) => (
-            <span key={k} className={k < now.said ? "is-said" : ""}>
-              {w.w}{" "}
-            </span>
-          ))}
-        </motion.p>
-      </AnimatePresence>
+      <p key={`${turn}:${now.key}`} className="caption-line">
+        {now.cutBefore && <span className="is-said">… </span>}
+        {now.words.map((w, k) => (
+          <span key={w.at} className={k < now.said ? "is-said" : ""}>
+            {w.w}{" "}
+          </span>
+        ))}
+        {now.cutAfter && <span>…</span>}
+      </p>
     </div>
   );
 }
