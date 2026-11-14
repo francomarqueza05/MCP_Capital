@@ -8,12 +8,13 @@
 
 export type Alignment = { chars: string[]; char_start_times_ms: number[]; char_durations_ms: number[] };
 
-type Chunk = { t0: number; chars: string[]; starts: number[] };
+type Chunk = { t0: number; len: number; chars: string[]; starts: number[] };
 
 export class SpeechClock {
   private chunks: Chunk[] = [];
   private playhead = 0;
   private playIndex = 0;
+  private shown = "";
 
   /** @param lagMs delay between the player starting a chunk and the sound reaching the ear */
   constructor(private lagMs = 90) {}
@@ -23,6 +24,7 @@ export class SpeechClock {
     this.chunks = [];
     this.playhead = 0;
     this.playIndex = 0;
+    this.shown = "";
   }
 
   /** A chunk arrived. It will play after the ones already queued. */
@@ -30,7 +32,7 @@ export class SpeechClock {
     if (!a?.chars?.length) return;
     const t0 = Math.max(now + this.lagMs, this.playhead);
     const length = Math.max(0, ...a.char_start_times_ms.map((s, i) => s + (a.char_durations_ms[i] ?? 0)));
-    this.chunks.push({ t0, chars: a.chars, starts: a.char_start_times_ms });
+    this.chunks.push({ t0, len: length, chars: a.chars, starts: a.char_start_times_ms });
     this.playhead = t0 + length;
   }
 
@@ -47,16 +49,32 @@ export class SpeechClock {
     this.playhead += shift;
   }
 
+  /**
+   * The speakers just went from silence to sound. Whatever the clock guessed, the chunk that
+   * should be playing (or the next one) really starts now: shift it and everything after it.
+   * Catches a player that starts late, and pauses between chunks when the network is slow.
+   */
+  resync(now: number) {
+    const k = this.chunks.findIndex((c) => c.t0 + c.len > now - 200);
+    if (k < 0) return;
+    const shift = now + this.lagMs - this.chunks[k].t0;
+    if (Math.abs(shift) < 60) return;
+    for (let i = k; i < this.chunks.length; i++) this.chunks[i].t0 += shift;
+    this.playhead += shift;
+  }
+
   /** Everything heard so far in this reply. Only ever grows. */
   heard(now: number) {
     let out = "";
-    for (const c of this.chunks) {
+    scan: for (const c of this.chunks) {
       for (let i = 0; i < c.chars.length; i++) {
-        if (c.t0 + c.starts[i] > now) return out;
+        if (c.t0 + c.starts[i] > now) break scan;
         out += c.chars[i];
       }
     }
-    return out;
+    // A resync can move the clock back; words already on screen never disappear.
+    if (out.length > this.shown.length) this.shown = out;
+    return this.shown;
   }
 
   get empty() {

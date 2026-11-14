@@ -129,6 +129,35 @@ const T = {
   },
 };
 
+/** Words that show which question the guide just asked, in Spanish or English. */
+const ASKED: Record<string, RegExp> = {
+  worry: /preocup|worr|ronda|cabeza|mind|inquiet/g,
+  level: /detalle|detail|sencill|simple|b[aá]sic|basic|nivel|profund|f[aá]cil/g,
+  accepted: /calendario|calendar|s[aá]bado|saturday|apunt/g,
+};
+
+/**
+ * The answers to offer: only those of the question the guide just asked. With one question in
+ * the phase, that one; with several, the one whose words came last in what the guide said;
+ * if it is unclear, none (a wrong option is worse than no option).
+ */
+function chipsFor(ask: Packet["ask"], said: string): string[] | null {
+  if (!ask.length) return null;
+  if (ask.length === 1) return ask[0].chips;
+  const tail = said.slice(-220).toLowerCase();
+  let best: Packet["ask"][number] | null = null;
+  let at = -1;
+  for (const a of ask) {
+    const hits = [...tail.matchAll(ASKED[a.field] ?? /$^/g)];
+    const pos = hits.length ? hits[hits.length - 1].index! : -1;
+    if (pos > at) {
+      at = pos;
+      best = a;
+    }
+  }
+  return best?.chips ?? null;
+}
+
 /** Typical delay between the audio player starting a chunk and it reaching the speakers. */
 const OUTPUT_LAG_MS = 90;
 
@@ -174,6 +203,7 @@ function Live({ slug }: { slug: string }) {
   const finished = useRef(false);
   // Captions: our own playback clock over the voice's audio chunks (see lib/speechClock).
   const clock = useRef(new SpeechClock(OUTPUT_LAG_MS));
+  const lastSound = useRef(0);
   const aligned = useRef(false);
   const turnOver = useRef(true);
 
@@ -326,6 +356,16 @@ function Live({ slug }: { slug: string }) {
       const lv = 1 - Math.exp(-v * 4.5);
       level.current = lv;
       root.current?.style.setProperty("--lv", lv.toFixed(3));
+      // When the speakers go from silence to sound, that is when the next words really start.
+      let out = 0;
+      try {
+        out = getOutputVolume();
+      } catch {}
+      const now = performance.now();
+      if (out > 0.015) {
+        if (now - lastSound.current > 350) clock.current.resync(now);
+        lastSound.current = now;
+      }
       // The caption is what has been heard so far: it only ever grows within a reply.
       if (aligned.current && !clock.current.empty) {
         const heard = clock.current.heard(performance.now());
@@ -405,7 +445,7 @@ function Live({ slug }: { slug: string }) {
   const due = goal?.due ? new Date(`${goal.due}T10:00:00`) : nextSaturday();
   const closing = goal ?? step;
   const compact = stage === "call" && Boolean(visual);
-  const chips = stage === "call" && packet?.ask.length && state === "listening" ? packet.ask.flatMap((a) => a.chips) : null;
+  const chips = stage === "call" && packet && state === "listening" ? chipsFor(packet.ask, line) : null;
 
   return (
     <main ref={root} className={`call is-${stage} is-${state} ${compact ? "is-compact" : ""}`} lang={lang}>

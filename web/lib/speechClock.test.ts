@@ -83,3 +83,30 @@ test("a long sentence turns the page at a comma instead of scrolling", () => {
   assert.equal(next.cutBefore, true);
   assert.equal(next.words[0], "porque", next.words.join(" "));
 });
+
+test("when the player starts late, the first sound resyncs the clock", () => {
+  const clock = new SpeechClock(0);
+  clock.receive(align("Hola Michael. Soy Cordada."), 0);
+  // The speakers stay silent until 600 ms, then the voice starts.
+  clock.resync(600);
+  assert.equal(clock.heard(550), "", "nothing shown before it is heard");
+  assert.ok(clock.heard(700).startsWith("Ho"));
+});
+
+test("a pause between chunks holds the caption until the voice resumes", () => {
+  const clock = new SpeechClock(0);
+  clock.receive(align("Hola."), 0); // 5 chars, ends at 325 ms
+  clock.receive(align(" Soy Cordada."), 100); // the clock guesses it follows at 325 ms
+  // The network stalls: silence from 325 to 1000 ms, then the voice resumes.
+  clock.resync(1000);
+  assert.equal(clock.heard(900), "Hola.");
+  assert.ok(clock.heard(1100).startsWith("Hola. S"));
+});
+
+test("a resync that moves the clock back never removes words already shown", () => {
+  const clock = new SpeechClock(0);
+  clock.receive(align("Hola Michael."), 0);
+  const before = clock.heard(400);
+  clock.resync(450); // sound only now: the clock had run ahead
+  assert.ok(clock.heard(460).startsWith(before));
+});
