@@ -17,6 +17,22 @@ export default function Page() {
       <Suspense fallback={null}>
         <Families />
       </Suspense>
+      <section className="start-blocks">
+        <h2>Every block, family by family</h2>
+        <p>The full Sherpas analysis of each family as visual blocks, for the guide to choose from.</p>
+        <div className="row">
+          {[
+            ["michael-carter", "Michael Carter"],
+            ["timothy-melanie-weah", "Timothy & Melanie Weah"],
+            ["daniel-emily-johnson", "Daniel & Emily Johnson"],
+            ["samantha-lewis", "Samantha Lewis"],
+          ].map(([slug, name]) => (
+            <Link key={slug} className="btn btn-line" href={`/blocks/${slug}`}>
+              {name}
+            </Link>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

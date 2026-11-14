@@ -1354,3 +1354,15 @@ body:has(.call) {
     animation-duration: 0.01ms !important;
   }
 }
+
+.start-blocks {
+  display: grid;
+  gap: 8px;
+  margin-top: 40px;
+  text-align: center;
+}
+
+.start-blocks p {
+  color: var(--muted);
+  margin-bottom: 8px;
+}
