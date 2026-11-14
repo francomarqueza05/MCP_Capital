@@ -1,5 +1,6 @@
 "use client";
 
+import { API_URL } from "@/lib/backend";
 import Link from "next/link";
 import { AnimatePresence, animate, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -131,7 +132,7 @@ export const MIC_OFF = "M4 4l16 16M9.5 9.5v2a2.5 2.5 0 0 0 4 2M14.5 10V6.5a2.5 2
 export const CC = "M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9ZM10.5 10.5a2 2 0 1 0 0 3M16.5 10.5a2 2 0 1 0 0 3";
 export const CLOSE = "M6 6l12 12M18 6 6 18";
 
-// The conversation, driven by the phase engine through /api/v1. The engine sends one packet
+// The conversation, driven by the phase engine through the Cordada API. The engine sends one packet
 // per phase: what to cover, the figures, the visual and the lines to say. This screen speaks
 // those lines with the ElevenLabs voice and reports back; the engine decides what is next.
 // The live agent replaces `speak` and `listen`; the API contract stays the same.
@@ -173,7 +174,7 @@ export function CallExperience({ slug }: { slug: string }) {
 
   const api = useCallback(
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
-      const res = await fetch(`/api/v1${path}`, {
+      const res = await fetch(`${API_URL}/v1${path}`, {
         ...init,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(init.headers ?? {}) },
       });
@@ -264,7 +265,7 @@ export function CallExperience({ slug }: { slug: string }) {
       if (!clips.current.has(text)) {
         clips.current.set(
           text,
-          fetch("/api/v1/speech", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ text }) })
+          fetch(`${API_URL}/v1/voice/speech`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ text }) })
             .then((r) => (r.ok ? r.blob() : null))
             .then((b) => (b ? URL.createObjectURL(b) : null))
             .catch(() => null),

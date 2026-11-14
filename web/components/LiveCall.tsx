@@ -1,5 +1,6 @@
 "use client";
 
+import { API_URL } from "@/lib/backend";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
@@ -126,7 +127,7 @@ function Live({ slug }: { slug: string }) {
 
   const api = useCallback(
     async <R,>(path: string, init: RequestInit = {}): Promise<R> => {
-      const res = await fetch(`/api/v1${path}`, {
+      const res = await fetch(`${API_URL}/v1${path}`, {
         ...init,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(init.headers ?? {}) },
       });
@@ -319,7 +320,7 @@ function Live({ slug }: { slug: string }) {
       const [view, ridge, voice] = await Promise.all([
         api<View>("/sessions", { method: "POST", body: JSON.stringify({ lang }) }),
         api<{ yearly: YearPoint[] }>("/visuals/ridge"),
-        api<{ signedUrl: string }>("/voice/token", { method: "POST", body: "{}" }),
+        api<{ signedUrl: string }>("/voice/agent-session", { method: "POST", body: "{}" }),
       ]);
       sessionId.current = view.session.id;
       setYearly(ridge.yearly);
