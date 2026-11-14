@@ -158,6 +158,14 @@ function chipsFor(ask: Packet["ask"], said: string): string[] | null {
   return best?.chips ?? null;
 }
 
+/** Diagnostics for caption timing, only with ?debug=1: window.__cap holds the trace. */
+const debugOn = () => typeof location !== "undefined" && new URLSearchParams(location.search).has("debug");
+const trace = (e: Record<string, unknown>) => {
+  if (!debugOn()) return;
+  const w = window as unknown as { __cap?: Record<string, unknown>[] };
+  (w.__cap ??= []).push({ t: Math.round(performance.now()), ...e });
+};
+
 /** Typical delay between the audio player starting a chunk and it reaching the speakers. */
 const OUTPUT_LAG_MS = 90;
 
@@ -290,10 +298,14 @@ function Live({ slug }: { slug: string }) {
         setLine("");
       }
       aligned.current = true;
+      trace({ k: "recv", text: alignment.chars.join(""), ms: Math.round(Math.max(0, ...alignment.char_start_times_ms)) });
       clock.current.receive(alignment, performance.now());
     },
     // When the player really starts a chunk (WebSocket only), correct our clock.
-    onAudioAlignmentPlayback: () => clock.current.started(performance.now()),
+    onAudioAlignmentPlayback: () => {
+      trace({ k: "play" });
+      clock.current.started(performance.now());
+    },
     onMessage: (m) => {
       // A new turn starts when the person speaks. Not on "listening": the player reports that
       // too in the short gaps between audio chunks of the same reply, which used to reset the caption.
@@ -363,13 +375,19 @@ function Live({ slug }: { slug: string }) {
       } catch {}
       const now = performance.now();
       if (out > 0.015) {
-        if (now - lastSound.current > 350) clock.current.resync(now);
+        if (now - lastSound.current > 350) {
+          trace({ k: "sound", silentMs: Math.round(now - lastSound.current) });
+          clock.current.resync(now);
+        }
         lastSound.current = now;
       }
       // The caption is what has been heard so far: it only ever grows within a reply.
       if (aligned.current && !clock.current.empty) {
         const heard = clock.current.heard(performance.now());
-        setLine((prev) => (prev === heard ? prev : heard));
+        setLine((prev) => {
+          if (prev !== heard) trace({ k: "heard", n: heard.length, tail: heard.slice(-24), vol: Math.round(out * 1000) / 1000 });
+          return prev === heard ? prev : heard;
+        });
       }
       raf = requestAnimationFrame(tick);
     };
